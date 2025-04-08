@@ -77,13 +77,14 @@ fn main() -> anyhow::Result<()> {
         match decoder.read(&mut buf) {
             Ok(size) => {
                 assert!(size % 2 == 0);
-                for offset in (0..size).step_by(2) {
-                    let entry_raw = buf[offset] as u16 | ((buf[offset + 1] as u16) << 8);
-                    let entry = Entry(entry_raw);
+                let buf_u16: &[u16] =
+                    unsafe { slice::from_raw_parts(&buf[0] as *const u8 as *const u16, size / 2) };
+                for entry_raw in buf_u16 {
+                    let entry = Entry(*entry_raw);
                     branch_execution_counts[entry.get_br_index()] += 1;
                     branch_taken_counts[entry.get_br_index()] += entry.get_taken() as usize;
                 }
-                pbar.update(size / 2)?;
+                pbar.update(buf_u16.len())?;
 
                 if size == 0 {
                     break;

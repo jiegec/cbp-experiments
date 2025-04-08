@@ -1,4 +1,6 @@
 build/
+perf.data
+perf.data.old
 
 # Added by cargo
 
