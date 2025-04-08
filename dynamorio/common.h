@@ -24,7 +24,7 @@ struct __attribute__((packed)) entry {
 
 // trace file format:
 // struct __attribute__((packed)) file {
-//   struct entry entries[num_entries];
+//   struct entry entries[num_entries]; // this array is zstd-compressed
 //   struct branch branches[num_br];
 //
 //   uint64_t num_brs;

@@ -45,6 +45,7 @@
 #include "utils.h"
 #include <assert.h>
 #include <stdint.h>
+#include <zstd.h>
 
 static client_id_t client_id;
 
@@ -62,6 +63,11 @@ struct tls {
 
   struct entry write_buffer[BUFFER_SIZE];
   int buffer_size;
+
+  // zstd
+  ZSTD_CCtx *zstd_cctx;
+  void *zstd_output_buffer;
+  size_t zstd_output_buffer_size;
 };
 
 static inline void logger(struct tls *t, app_pc inst_addr, app_pc fall_addr,
@@ -90,7 +96,22 @@ static inline void logger(struct tls *t, app_pc inst_addr, app_pc fall_addr,
   }
 
   if (t->buffer_size == BUFFER_SIZE) {
-    dr_write_file(t->log, t->write_buffer, sizeof(t->write_buffer));
+    // send write_buffer to zstd
+
+    // https://github.com/facebook/zstd/blob/dev/examples/streaming_compression.c
+    ZSTD_EndDirective mode = ZSTD_e_continue;
+    ZSTD_inBuffer input = {t->write_buffer, sizeof(t->write_buffer), 0};
+    int finished;
+    do {
+      ZSTD_outBuffer output = {t->zstd_output_buffer,
+                               t->zstd_output_buffer_size, 0};
+      size_t remaining =
+          ZSTD_compressStream2(t->zstd_cctx, &output, &input, mode);
+      assert(!ZSTD_isError(remaining));
+      dr_write_file(t->log, t->zstd_output_buffer, output.pos);
+      finished = input.pos == input.size;
+    } while (!finished);
+
     t->buffer_size = 0;
   }
   t->write_buffer[t->buffer_size++] = e;
@@ -204,18 +225,37 @@ static void event_thread_init(void *drcontext) {
   options.initial_capacity = 16384;
   options.comparer = &hashmap_comparer;
   hashmap_create_ex(options, &t->br_map);
+
+  // initial zstd
+  t->zstd_cctx = ZSTD_createCCtx();
+  assert(t->zstd_cctx);
+  t->zstd_output_buffer_size = ZSTD_CStreamOutSize();
+  t->zstd_output_buffer = malloc(t->zstd_output_buffer_size);
+  assert(t->zstd_output_buffer);
+
   drmgr_set_tls_field(drcontext, tls_idx, (void *)t);
 }
 
 static void event_thread_exit(void *drcontext) {
   struct tls *t = (struct tls *)drmgr_get_tls_field(drcontext, tls_idx);
   assert(t);
+
   // finish entries
-  if (t->buffer_size > 0) {
-    dr_write_file(t->log, t->write_buffer,
-                  sizeof(struct entry) * t->buffer_size);
-    t->buffer_size = 0;
-  }
+  // https://github.com/facebook/zstd/blob/dev/examples/streaming_compression.c
+  ZSTD_EndDirective mode = ZSTD_e_end;
+  ZSTD_inBuffer input = {t->write_buffer, sizeof(struct entry) * t->buffer_size,
+                         0};
+  int finished;
+  do {
+    ZSTD_outBuffer output = {t->zstd_output_buffer, t->zstd_output_buffer_size,
+                             0};
+    size_t remaining =
+        ZSTD_compressStream2(t->zstd_cctx, &output, &input, mode);
+    assert(!ZSTD_isError(remaining));
+    dr_write_file(t->log, t->zstd_output_buffer, output.pos);
+    finished = remaining == 0;
+  } while (!finished);
+  t->buffer_size = 0;
 
   // write branches
   dr_write_file(t->log, t->brs, sizeof(struct branch) * t->num_brs);
