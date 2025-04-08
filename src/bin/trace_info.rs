@@ -76,6 +76,11 @@ fn main() -> anyhow::Result<()> {
     loop {
         match decoder.read(&mut buf) {
             Ok(size) => {
+                if size == 0 {
+                    // no more data
+                    break;
+                }
+
                 assert!(size % 2 == 0);
                 let buf_u16: &[u16] =
                     unsafe { slice::from_raw_parts(&buf[0] as *const u8 as *const u16, size / 2) };
@@ -85,13 +90,6 @@ fn main() -> anyhow::Result<()> {
                     branch_taken_counts[entry.get_br_index()] += entry.get_taken() as usize;
                 }
                 pbar.update(buf_u16.len())?;
-
-                if size == 0 {
-                    break;
-                }
-            }
-            Err(err) if err.kind() == std::io::ErrorKind::UnexpectedEof => {
-                break;
             }
             Err(err) => {
                 return Err(anyhow::anyhow!(
