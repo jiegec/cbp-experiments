@@ -14,10 +14,10 @@ pub enum BranchType {
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct Branch {
-    inst_addr: u64,
-    targ_addr: u64,
-    inst_length: u32,
-    branch_type: BranchType,
+    pub inst_addr: u64,
+    pub targ_addr: u64,
+    pub inst_length: u32,
+    pub branch_type: BranchType,
 }
 
 pub struct Entry(pub u16);
