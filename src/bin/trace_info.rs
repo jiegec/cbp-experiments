@@ -1,7 +1,10 @@
+use capstone::prelude::*;
 /// Display info and statistics of trace file
 use cbp_experiments::{Branch, BranchType, TraceFile, get_tqdm_style};
 use clap::Parser;
 use cli_table::{Cell, Table, print_stdout};
+use object::{Object, ObjectSection, SectionKind};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -9,6 +12,9 @@ use std::path::PathBuf;
 struct Cli {
     /// Path to trace file
     trace: PathBuf,
+
+    /// Path to ELF file
+    elf: Option<PathBuf>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -52,21 +58,69 @@ fn main() -> anyhow::Result<()> {
         branch_type_counts[BranchType::ConditionalDirectJump.repr as usize]
     );
 
+    // create a mapping from instruction address to instruction index for instruction counting
+    let cs = Capstone::new()
+        .x86()
+        .mode(arch::x86::ArchMode::Mode64)
+        .syntax(arch::x86::ArchSyntax::Att)
+        .detail(true)
+        .build()?;
+
+    let mut mapping: HashMap<u64, usize> = HashMap::new();
+    if let Some(elf) = &args.elf {
+        let binary_data = std::fs::read(elf)?;
+        let file = object::File::parse(&*binary_data)?;
+
+        let mut i = 0;
+        for section in file.sections() {
+            if section.kind() == SectionKind::Text {
+                let content = section.data()?;
+                let insns = cs.disasm_all(content, section.address())?;
+                for insn in insns.as_ref() {
+                    assert_eq!(mapping.insert(insn.address(), i), None);
+                    i += 1;
+                }
+            }
+        }
+    }
+
     let mut branch_execution_counts = vec![0usize; file.num_brs];
     let mut branch_taken_counts = vec![0usize; file.num_brs];
 
     println!("Iterating entries");
     let pbar = indicatif::ProgressBar::new(file.num_entries as u64);
     pbar.set_style(get_tqdm_style());
+    let mut last_target_address = None;
+    let mut instructions = 0;
     for entries in file.entries()? {
         for entry in entries {
             branch_execution_counts[entry.get_br_index()] += 1;
             branch_taken_counts[entry.get_br_index()] += entry.get_taken() as usize;
+            // add instruction counting if elf is provided
+            if args.elf.is_some() && entry.get_taken() {
+                let branch = &file.branches[entry.get_br_index()];
+                if let Some(from) = last_target_address {
+                    // count instructions from last target address to the current branch address
+                    let last_index = mapping.get(&from).unwrap();
+                    let curr_index = mapping.get(&branch.inst_addr).unwrap();
+                    assert!(curr_index >= last_index);
+                    instructions += curr_index - last_index + 1;
+                }
+                last_target_address = Some(branch.targ_addr);
+            }
         }
 
         pbar.inc(entries.len() as u64);
     }
     pbar.finish();
+
+    // accuracy: on a trimmed leela test (5% of total)
+    // perf stat reported: 110979252909 instructions
+    // counted: 110976357974 instructions
+    // error less than 0.01%
+    if args.elf.is_some() {
+        println!("Executed {} instructions", instructions);
+    }
 
     println!("Top branches by execution count:");
     let mut items: Vec<((&usize, &usize), &Branch)> = branch_execution_counts
