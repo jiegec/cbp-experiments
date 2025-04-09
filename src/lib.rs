@@ -146,7 +146,7 @@ pub mod ffi {
     }
 
     unsafe extern "C++" {
-        include!("cbp-experiments/predictors/ffi/interface.h");
+        include!("cbp-experiments/predictors/wrapper/interface.h");
 
         type Predictor;
 

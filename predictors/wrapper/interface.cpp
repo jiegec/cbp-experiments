@@ -1,8 +1,7 @@
-#include "cbp-experiments/predictors/ffi/interface.h"
-#include "cbp-experiments/predictors/common/utils.h"
+#include "cbp-experiments/predictors/wrapper/interface.h"
+#include "cbp-experiments/predictors/wrapper/utils.h"
 #include "cbp-experiments/src/lib.rs.h"
 #include "interface.h"
-#include <memory>
 
 namespace andre_seznec_tage_sc_l_8kb {
 #include "cbp-experiments/predictors/AndreSeznec-TAGE-SC-L-8KB/predictor.h"
