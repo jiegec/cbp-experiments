@@ -1,3 +1,4 @@
+use cbp_experiments::ffi::new_predictor;
 use cbp_experiments::{Branch, BranchType, Entry};
 use clap::Parser;
 use cli_table::{Cell, Table, print_stdout};
@@ -12,6 +13,9 @@ use std::{
 struct Cli {
     /// Path to trace file
     trace: PathBuf,
+
+    /// Predictor name
+    predictor: String,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -38,39 +42,13 @@ fn main() -> anyhow::Result<()> {
     let cursor = Cursor::new(compressed_entries);
     let mut decoder = zstd::stream::read::Decoder::new(cursor)?;
 
-    let mut branch_type_counts = [0usize; BranchType::Invalid.repr as usize];
-    for branch in branches {
-        branch_type_counts[branch.branch_type.repr as usize] += 1;
-    }
-
-    println!("Branch counts:");
-    println!(
-        "- direct jump: {}",
-        branch_type_counts[BranchType::DirectJump.repr as usize]
-    );
-    println!(
-        "- indirect jump: {}",
-        branch_type_counts[BranchType::IndirectJump.repr as usize]
-    );
-    println!(
-        "- direct call: {}",
-        branch_type_counts[BranchType::DirectCall.repr as usize]
-    );
-    println!(
-        "- indirect call: {}",
-        branch_type_counts[BranchType::IndirectCall.repr as usize]
-    );
-    println!(
-        "- return: {}",
-        branch_type_counts[BranchType::Return.repr as usize]
-    );
-    println!(
-        "- conditional direct jump: {}",
-        branch_type_counts[BranchType::ConditionalDirectJump.repr as usize]
-    );
+    let mut predictor = new_predictor(&args.predictor);
+    let mut predictor_mut = predictor.as_mut().unwrap();
 
     let mut branch_execution_counts = vec![0usize; num_brs];
     let mut branch_taken_counts = vec![0usize; num_brs];
+    let mut branch_mispred_counts = vec![0usize; num_brs];
+
     let mut pbar = tqdm::pbar(Some(num_entries));
     let mut buf = [0u8; 1024 * 256];
     loop {
@@ -88,6 +66,31 @@ fn main() -> anyhow::Result<()> {
                     let entry = Entry(*entry_raw);
                     branch_execution_counts[entry.get_br_index()] += 1;
                     branch_taken_counts[entry.get_br_index()] += entry.get_taken() as usize;
+
+                    let branch = &branches[entry.get_br_index()];
+                    if branch.branch_type == BranchType::ConditionalDirectJump {
+                        // requires prediction
+                        let predict = predictor_mut.as_mut().get_prediction(branch.inst_addr);
+                        branch_mispred_counts[entry.get_br_index()] +=
+                            (predict != entry.get_taken()) as usize;
+
+                        // update
+                        predictor_mut.as_mut().update_predictor(
+                            branch.inst_addr,
+                            branch.branch_type,
+                            entry.get_taken(),
+                            predict,
+                            branch.targ_addr,
+                        );
+                    } else {
+                        // update
+                        predictor_mut.as_mut().track_other_inst(
+                            branch.inst_addr,
+                            branch.branch_type,
+                            true,
+                            branch.targ_addr,
+                        );
+                    }
                 }
                 pbar.update(buf_u16.len())?;
             }
@@ -101,23 +104,30 @@ fn main() -> anyhow::Result<()> {
     }
     pbar.close()?;
 
-    println!("Top branches by execution count:");
-    let mut items: Vec<((&usize, &usize), &Branch)> = branch_execution_counts
+    println!("Top branches by misprediction count:");
+    let mut items: Vec<(((&usize, &usize), &usize), &Branch)> = branch_execution_counts
         .iter()
         .zip(branch_taken_counts.iter())
+        .zip(branch_mispred_counts.iter())
         .zip(branches)
         .collect();
 
-    items.sort_by_key(|((execution_count, _), _)| **execution_count);
+    items.sort_by_key(|(((_, _), mispred_count), _)| **mispred_count);
     let mut table = vec![];
-    for ((execution_count, taken_count), branch) in items.iter().rev().take(10) {
+    for (((execution_count, taken_count), mispred_count), branch) in items.iter().rev().take(10) {
         table.push(vec![
             format!("0x{:08x}", branch.inst_addr).cell(),
             format!("{:?}", branch.branch_type).cell(),
             execution_count.cell(),
+            mispred_count.cell(),
             format!(
                 "{:.2}",
                 **taken_count as f64 * 100.0 / **execution_count as f64
+            )
+            .cell(),
+            format!(
+                "{:.2}",
+                **mispred_count as f64 * 100.0 / **execution_count as f64
             )
             .cell(),
         ]);
@@ -127,6 +137,7 @@ fn main() -> anyhow::Result<()> {
         "Branch Type".cell(),
         "Execution Count".cell(),
         "Taken Rate (%)".cell(),
+        "Misprediction Rate (%)".cell(),
     ]);
     print_stdout(table)?;
 

@@ -1,14 +1,14 @@
 #ifndef _PREDICTOR_H_
 #define _PREDICTOR_H_
 
-#include <stdlib.h>
-#include <string.h>
-#include <assert.h>
-#include <inttypes.h>
-#include <math.h>
-#include "utils.h"
-#include "bt9.h"
-#include "bt9_reader.h"
+// #include <stdlib.h>
+// #include <string.h>
+// #include <assert.h>
+// #include <inttypes.h>
+// #include <math.h>
+// #include "utils.h"
+// #include "bt9.h"
+// #include "bt9_reader.h"
 
 
 #define BORNTICK  1024
@@ -16,7 +16,7 @@
 
 //To get the predictor storage budget on stderr  uncomment the next line
 #define PRINTSIZE
-#include <vector>
+// #include <vector>
 
 
 #define SC			// Enables the statiscal corrctor + 5.7 % MPKI without SC
