@@ -87,26 +87,35 @@ fn main() -> anyhow::Result<()> {
     let mut branch_execution_counts = vec![0usize; file.num_brs];
     let mut branch_taken_counts = vec![0usize; file.num_brs];
 
+    // preprocess instruction indices for all branches
+    let mut branch_inst_addr_indices = vec![0usize; file.num_brs];
+    let mut branch_targ_addr_indices = vec![0usize; file.num_brs];
+    if args.elf.is_some() {
+        for (i, branch) in file.branches.iter().enumerate() {
+            branch_inst_addr_indices[i] = *mapping.get(&branch.inst_addr).unwrap();
+            branch_targ_addr_indices[i] = *mapping.get(&branch.targ_addr).unwrap();
+        }
+    }
+
     println!("Iterating entries");
     let pbar = indicatif::ProgressBar::new(file.num_entries as u64);
     pbar.set_style(get_tqdm_style());
-    let mut last_target_address = None;
+    let mut last_targ_addr_index = None;
     let mut instructions = 0;
     for entries in file.entries()? {
         for entry in entries {
             branch_execution_counts[entry.get_br_index()] += 1;
             branch_taken_counts[entry.get_br_index()] += entry.get_taken() as usize;
+
             // add instruction counting if elf is provided
             if args.elf.is_some() && entry.get_taken() {
-                let branch = &file.branches[entry.get_br_index()];
-                if let Some(from) = last_target_address {
+                let curr_index = branch_inst_addr_indices[entry.get_br_index()];
+                if let Some(last_index) = last_targ_addr_index {
                     // count instructions from last target address to the current branch address
-                    let last_index = mapping.get(&from).unwrap();
-                    let curr_index = mapping.get(&branch.inst_addr).unwrap();
                     assert!(curr_index >= last_index);
                     instructions += curr_index - last_index + 1;
                 }
-                last_target_address = Some(branch.targ_addr);
+                last_targ_addr_index = Some(branch_targ_addr_indices[entry.get_br_index()]);
             }
         }
 
