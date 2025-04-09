@@ -17,6 +17,14 @@ struct Cli {
     elf: Option<PathBuf>,
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct BranchInfo {
+    execution_count: usize,
+    taken_count: usize,
+    inst_addr_index: usize,
+    targ_addr_index: usize,
+}
+
 fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
     let content = std::fs::read(args.trace)?;
@@ -84,16 +92,13 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
-    let mut branch_execution_counts = vec![0usize; file.num_brs];
-    let mut branch_taken_counts = vec![0usize; file.num_brs];
+    let mut branch_infos = vec![BranchInfo::default(); file.num_brs];
 
     // preprocess instruction indices for all branches
-    let mut branch_inst_addr_indices = vec![0usize; file.num_brs];
-    let mut branch_targ_addr_indices = vec![0usize; file.num_brs];
     if args.elf.is_some() {
         for (i, branch) in file.branches.iter().enumerate() {
-            branch_inst_addr_indices[i] = *mapping.get(&branch.inst_addr).unwrap();
-            branch_targ_addr_indices[i] = *mapping.get(&branch.targ_addr).unwrap();
+            branch_infos[i].inst_addr_index = *mapping.get(&branch.inst_addr).unwrap();
+            branch_infos[i].targ_addr_index = *mapping.get(&branch.targ_addr).unwrap();
         }
     }
 
@@ -104,18 +109,20 @@ fn main() -> anyhow::Result<()> {
     let mut instructions = 0;
     for entries in file.entries()? {
         for entry in entries {
-            branch_execution_counts[entry.get_br_index()] += 1;
-            branch_taken_counts[entry.get_br_index()] += entry.get_taken() as usize;
+            let br_index = entry.get_br_index();
+            let taken = entry.get_taken();
+            branch_infos[br_index].execution_count += 1;
+            branch_infos[br_index].taken_count += taken as usize;
 
             // add instruction counting if elf is provided
-            if args.elf.is_some() && entry.get_taken() {
-                let curr_index = branch_inst_addr_indices[entry.get_br_index()];
+            if args.elf.is_some() && taken {
+                let curr_index = branch_infos[br_index].inst_addr_index;
                 if let Some(last_index) = last_targ_addr_index {
                     // count instructions from last target address to the current branch address
                     assert!(curr_index >= last_index);
                     instructions += curr_index - last_index + 1;
                 }
-                last_targ_addr_index = Some(branch_targ_addr_indices[entry.get_br_index()]);
+                last_targ_addr_index = Some(branch_infos[br_index].targ_addr_index);
             }
         }
 
@@ -132,22 +139,18 @@ fn main() -> anyhow::Result<()> {
     }
 
     println!("Top branches by execution count:");
-    let mut items: Vec<((&usize, &usize), &Branch)> = branch_execution_counts
-        .iter()
-        .zip(branch_taken_counts.iter())
-        .zip(file.branches)
-        .collect();
+    let mut items: Vec<(&BranchInfo, &Branch)> = branch_infos.iter().zip(file.branches).collect();
 
-    items.sort_by_key(|((execution_count, _), _)| **execution_count);
+    items.sort_by_key(|(info, _)| info.execution_count);
     let mut table = vec![];
-    for ((execution_count, taken_count), branch) in items.iter().rev().take(10) {
+    for (info, branch) in items.iter().rev().take(10) {
         table.push(vec![
             format!("0x{:08x}", branch.inst_addr).cell(),
             format!("{:?}", branch.branch_type).cell(),
-            execution_count.cell(),
+            info.execution_count.cell(),
             format!(
                 "{:.2}",
-                **taken_count as f64 * 100.0 / **execution_count as f64
+                info.taken_count as f64 * 100.0 / info.execution_count as f64
             )
             .cell(),
         ]);
