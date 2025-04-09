@@ -120,6 +120,17 @@ impl<'a> TraceFile<'a> {
     }
 }
 
+pub fn get_tqdm_style() -> indicatif::ProgressStyle {
+    indicatif::ProgressStyle::with_template(
+            "{percent:>3}% |{wide_bar}| {pos}/{len} [{elapsed_precise}<{eta_precise}, {custom_per_sec}]",
+        )
+        .unwrap()
+        .with_key(
+            "custom_per_sec",
+            Box::new(|s: &indicatif::ProgressState, w: &mut dyn std::fmt::Write| write!(w, "{:.2} it/s", s.per_sec()).unwrap()),
+        ).progress_chars("██ ")
+}
+
 #[cxx::bridge]
 pub mod ffi {
     #[repr(u32)]

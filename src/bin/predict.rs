@@ -1,5 +1,5 @@
 use cbp_experiments::ffi::new_predictor;
-use cbp_experiments::{Branch, BranchType, TraceFile};
+use cbp_experiments::{Branch, BranchType, TraceFile, get_tqdm_style};
 use clap::Parser;
 use cli_table::{Cell, Table, print_stdout};
 use std::path::PathBuf;
@@ -44,7 +44,8 @@ fn main() -> anyhow::Result<()> {
     let mut branch_taken_counts = vec![0usize; file.num_brs];
     let mut branch_mispred_counts = vec![0usize; file.num_brs];
 
-    let mut pbar = tqdm::pbar(Some(args.skip + args.warmup + args.simulation));
+    let pbar = indicatif::ProgressBar::new((args.skip + args.warmup + args.simulation) as u64);
+    pbar.set_style(get_tqdm_style());
     let mut i = 0;
 
     for entries in file.entries()? {
@@ -87,14 +88,23 @@ fn main() -> anyhow::Result<()> {
             }
         }
 
-        pbar.update(entries.len())?;
+        if i <= args.skip {
+            pbar.set_length(args.skip as u64);
+            pbar.set_position(i as u64);
+        } else if i <= args.skip + args.warmup {
+            pbar.set_length(args.warmup as u64);
+            pbar.set_position((i - args.skip) as u64);
+        } else {
+            pbar.set_length(args.simulation as u64);
+            pbar.set_position((i - args.skip - args.warmup) as u64);
+        }
 
         if i > args.skip + args.warmup + args.simulation {
             break;
         }
     }
 
-    pbar.close()?;
+    pbar.finish();
 
     println!("Top branches by misprediction count:");
     let mut items: Vec<(((&usize, &usize), &usize), &Branch)> = branch_execution_counts

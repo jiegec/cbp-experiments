@@ -1,7 +1,7 @@
-use cbp_experiments::{Branch, BranchType, TraceFile};
+use cbp_experiments::{Branch, BranchType, TraceFile, get_tqdm_style};
 use clap::Parser;
 use cli_table::{Cell, Table, print_stdout};
-use std::path::PathBuf;
+use std::{fmt::Write, path::PathBuf};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -54,16 +54,18 @@ fn main() -> anyhow::Result<()> {
     let mut branch_execution_counts = vec![0usize; file.num_brs];
     let mut branch_taken_counts = vec![0usize; file.num_brs];
 
-    let mut pbar = tqdm::pbar(Some(file.num_entries));
+    println!("Iterating entries");
+    let pbar = indicatif::ProgressBar::new(file.num_entries as u64);
+    pbar.set_style(get_tqdm_style());
     for entries in file.entries()? {
         for entry in entries {
             branch_execution_counts[entry.get_br_index()] += 1;
             branch_taken_counts[entry.get_br_index()] += entry.get_taken() as usize;
         }
 
-        pbar.update(entries.len())?;
+        pbar.inc(entries.len() as u64);
     }
-    pbar.close()?;
+    pbar.finish();
 
     println!("Top branches by execution count:");
     let mut items: Vec<((&usize, &usize), &Branch)> = branch_execution_counts
