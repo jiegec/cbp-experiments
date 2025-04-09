@@ -17,6 +17,10 @@ struct Cli {
     /// Predictor name
     predictor: String,
 
+    /// Skip count
+    #[arg(default_value = "0")]
+    skip: usize,
+
     /// Warmup count
     #[arg(default_value = "0")]
     warmup: usize,
@@ -57,7 +61,7 @@ fn main() -> anyhow::Result<()> {
     let mut branch_taken_counts = vec![0usize; num_brs];
     let mut branch_mispred_counts = vec![0usize; num_brs];
 
-    let mut pbar = tqdm::pbar(Some(args.warmup + args.simulation));
+    let mut pbar = tqdm::pbar(Some(args.skip + args.warmup + args.simulation));
     let mut buf = [0u8; 1024 * 256];
     let mut i = 0;
     loop {
@@ -73,8 +77,12 @@ fn main() -> anyhow::Result<()> {
                     unsafe { slice::from_raw_parts(&buf[0] as *const u8 as *const u16, size / 2) };
                 for entry_raw in buf_u16 {
                     i += 1;
+                    if i <= args.skip {
+                        continue;
+                    }
+
                     let entry = Entry(*entry_raw);
-                    if i > args.warmup {
+                    if i > args.skip + args.warmup {
                         branch_execution_counts[entry.get_br_index()] += 1;
                         branch_taken_counts[entry.get_br_index()] += entry.get_taken() as usize;
                     }
@@ -83,7 +91,7 @@ fn main() -> anyhow::Result<()> {
                     if branch.branch_type == BranchType::ConditionalDirectJump {
                         // requires prediction
                         let predict = predictor_mut.as_mut().get_prediction(branch.inst_addr);
-                        if i > args.warmup {
+                        if i > args.skip + args.warmup {
                             branch_mispred_counts[entry.get_br_index()] +=
                                 (predict != entry.get_taken()) as usize;
                         }
@@ -108,7 +116,7 @@ fn main() -> anyhow::Result<()> {
                 }
                 pbar.update(buf_u16.len())?;
 
-                if i > args.warmup + args.simulation {
+                if i > args.skip + args.warmup + args.simulation {
                     break;
                 }
             }
