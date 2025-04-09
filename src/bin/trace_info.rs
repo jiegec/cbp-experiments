@@ -1,6 +1,6 @@
-use capstone::prelude::*;
 /// Display info and statistics of trace file
-use cbp_experiments::{Branch, BranchType, TraceFile, get_tqdm_style};
+use capstone::prelude::*;
+use cbp_experiments::{Branch, BranchType, TraceFile, create_insn_index_mapping, get_tqdm_style};
 use clap::Parser;
 use cli_table::{Cell, Table, print_stdout};
 use object::{Object, ObjectSection, SectionKind};
@@ -67,29 +67,9 @@ fn main() -> anyhow::Result<()> {
     );
 
     // create a mapping from instruction address to instruction index for instruction counting
-    let cs = Capstone::new()
-        .x86()
-        .mode(arch::x86::ArchMode::Mode64)
-        .syntax(arch::x86::ArchSyntax::Att)
-        .detail(true)
-        .build()?;
-
     let mut mapping: HashMap<u64, usize> = HashMap::new();
     if let Some(elf) = &args.elf {
-        let binary_data = std::fs::read(elf)?;
-        let file = object::File::parse(&*binary_data)?;
-
-        let mut i = 0;
-        for section in file.sections() {
-            if section.kind() == SectionKind::Text {
-                let content = section.data()?;
-                let insns = cs.disasm_all(content, section.address())?;
-                for insn in insns.as_ref() {
-                    assert_eq!(mapping.insert(insn.address(), i), None);
-                    i += 1;
-                }
-            }
-        }
+        mapping = create_insn_index_mapping(elf)?;
     }
 
     let mut branch_infos = vec![BranchInfo::default(); file.num_brs];
