@@ -17,15 +17,15 @@ struct Cli {
     /// Path to ELF file
     elf: PathBuf,
 
-    /// Skip count
+    /// Skip count in instructions
     #[arg(default_value = "0")]
     skip: usize,
 
-    /// Warmup count
+    /// Warmup count in instructions
     #[arg(default_value = "0")]
     warmup: usize,
 
-    /// Simulation count
+    /// Simulation count in instructions
     #[arg(default_value = "0")]
     simulate: usize,
 }
