@@ -32,9 +32,9 @@ struct Cli {
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct BranchInfo {
-    execution_count: usize,
-    taken_count: usize,
-    mispred_count: usize,
+    execution_count: u64,
+    taken_count: u64,
+    mispred_count: u64,
     inst_addr_index: usize,
     targ_addr_index: usize,
 }
@@ -96,7 +96,7 @@ fn main() -> anyhow::Result<()> {
             // collect statistics
             if instructions > args.skip + args.warmup {
                 branch_infos[entry.get_br_index()].execution_count += 1;
-                branch_infos[entry.get_br_index()].taken_count += entry.get_taken() as usize;
+                branch_infos[entry.get_br_index()].taken_count += entry.get_taken() as u64;
             }
 
             // predict or train
@@ -106,7 +106,7 @@ fn main() -> anyhow::Result<()> {
                 let predict = predictor_mut.as_mut().get_prediction(branch.inst_addr);
                 if instructions > args.skip + args.warmup {
                     branch_infos[entry.get_br_index()].mispred_count +=
-                        (predict != entry.get_taken()) as usize;
+                        (predict != entry.get_taken()) as u64;
                 }
 
                 // update
@@ -145,6 +145,15 @@ fn main() -> anyhow::Result<()> {
     }
 
     pbar.finish();
+
+    // compute mpki
+    let total_mispred_count: u64 = branch_infos.iter().map(|info| info.mispred_count).sum();
+    println!(
+        "MPKI: {:.2} = {} * 1000 / {}",
+        total_mispred_count as f64 * 1000.0 / args.simulate as f64,
+        total_mispred_count,
+        args.simulate
+    );
 
     println!("Top branches by misprediction count:");
     let mut items: Vec<(&BranchInfo, &Branch)> = branch_infos.iter().zip(file.branches).collect();
