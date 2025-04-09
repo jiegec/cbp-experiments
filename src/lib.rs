@@ -1,7 +1,7 @@
-// follow definitions in common.h
-
 use std::io::{BufReader, Cursor, Read};
 use zstd::stream::read::Decoder;
+
+// follow definitions in common.h
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
