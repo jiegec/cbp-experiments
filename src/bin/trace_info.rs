@@ -1,11 +1,7 @@
-use cbp_experiments::{Branch, BranchType, Entry};
+use cbp_experiments::{Branch, BranchType, TraceFile};
 use clap::Parser;
 use cli_table::{Cell, Table, print_stdout};
-use std::slice;
-use std::{
-    io::{Cursor, Read},
-    path::PathBuf,
-};
+use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -17,29 +13,15 @@ struct Cli {
 fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
     let content = std::fs::read(args.trace)?;
-    // read num_brs
-    let mut tmp_u64 = [0u8; 8];
-    tmp_u64.copy_from_slice(&content[content.len() - 16..content.len() - 8]);
-    let num_brs = u64::from_le_bytes(tmp_u64) as usize;
-    tmp_u64.copy_from_slice(&content[content.len() - 8..content.len()]);
-    let num_entries = u64::from_le_bytes(tmp_u64) as usize;
-    println!("Got {num_brs} branches and {num_entries} entries");
-
-    let branches: &[Branch] = unsafe {
-        slice::from_raw_parts(
-            &content[content.len() - 16 - std::mem::size_of::<Branch>() * num_brs as usize]
-                as *const u8 as *const Branch,
-            num_brs as usize,
-        )
-    };
-
-    let compressed_entries: &[u8] =
-        &content[0..content.len() - 16 - std::mem::size_of::<Branch>() * num_brs as usize];
-    let cursor = Cursor::new(compressed_entries);
-    let mut decoder = zstd::stream::read::Decoder::new(cursor)?;
+    // parse trace file
+    let file = TraceFile::open(&content);
+    println!(
+        "Got {} branches and {} entries",
+        file.num_brs, file.num_entries
+    );
 
     let mut branch_type_counts = [0usize; BranchType::Invalid.repr as usize];
-    for branch in branches {
+    for branch in file.branches {
         branch_type_counts[branch.branch_type.repr as usize] += 1;
     }
 
@@ -69,35 +51,17 @@ fn main() -> anyhow::Result<()> {
         branch_type_counts[BranchType::ConditionalDirectJump.repr as usize]
     );
 
-    let mut branch_execution_counts = vec![0usize; num_brs];
-    let mut branch_taken_counts = vec![0usize; num_brs];
-    let mut pbar = tqdm::pbar(Some(num_entries));
-    let mut buf = [0u8; 1024 * 256];
-    loop {
-        match decoder.read(&mut buf) {
-            Ok(size) => {
-                if size == 0 {
-                    // no more data
-                    break;
-                }
+    let mut branch_execution_counts = vec![0usize; file.num_brs];
+    let mut branch_taken_counts = vec![0usize; file.num_brs];
 
-                assert!(size % 2 == 0);
-                let buf_u16: &[u16] =
-                    unsafe { slice::from_raw_parts(&buf[0] as *const u8 as *const u16, size / 2) };
-                for entry_raw in buf_u16 {
-                    let entry = Entry(*entry_raw);
-                    branch_execution_counts[entry.get_br_index()] += 1;
-                    branch_taken_counts[entry.get_br_index()] += entry.get_taken() as usize;
-                }
-                pbar.update(buf_u16.len())?;
-            }
-            Err(err) => {
-                return Err(anyhow::anyhow!(
-                    "Failed to read data from zstd compressed stream: {:?}",
-                    err
-                ));
-            }
+    let mut pbar = tqdm::pbar(Some(file.num_entries));
+    for entries in file.entries()? {
+        for entry in entries {
+            branch_execution_counts[entry.get_br_index()] += 1;
+            branch_taken_counts[entry.get_br_index()] += entry.get_taken() as usize;
         }
+
+        pbar.update(entries.len())?;
     }
     pbar.close()?;
 
@@ -105,7 +69,7 @@ fn main() -> anyhow::Result<()> {
     let mut items: Vec<((&usize, &usize), &Branch)> = branch_execution_counts
         .iter()
         .zip(branch_taken_counts.iter())
-        .zip(branches)
+        .zip(file.branches)
         .collect();
 
     items.sort_by_key(|((execution_count, _), _)| **execution_count);
