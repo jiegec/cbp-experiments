@@ -16,6 +16,14 @@ struct Cli {
 
     /// Predictor name
     predictor: String,
+
+    /// Warmup count
+    #[arg(default_value = "0")]
+    warmup: usize,
+
+    /// Simulation count
+    #[arg(default_value = "0")]
+    simulation: usize,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -49,8 +57,9 @@ fn main() -> anyhow::Result<()> {
     let mut branch_taken_counts = vec![0usize; num_brs];
     let mut branch_mispred_counts = vec![0usize; num_brs];
 
-    let mut pbar = tqdm::pbar(Some(num_entries));
+    let mut pbar = tqdm::pbar(Some(args.warmup + args.simulation));
     let mut buf = [0u8; 1024 * 256];
+    let mut i = 0;
     loop {
         match decoder.read(&mut buf) {
             Ok(size) => {
@@ -63,16 +72,21 @@ fn main() -> anyhow::Result<()> {
                 let buf_u16: &[u16] =
                     unsafe { slice::from_raw_parts(&buf[0] as *const u8 as *const u16, size / 2) };
                 for entry_raw in buf_u16 {
+                    i += 1;
                     let entry = Entry(*entry_raw);
-                    branch_execution_counts[entry.get_br_index()] += 1;
-                    branch_taken_counts[entry.get_br_index()] += entry.get_taken() as usize;
+                    if i > args.warmup {
+                        branch_execution_counts[entry.get_br_index()] += 1;
+                        branch_taken_counts[entry.get_br_index()] += entry.get_taken() as usize;
+                    }
 
                     let branch = &branches[entry.get_br_index()];
                     if branch.branch_type == BranchType::ConditionalDirectJump {
                         // requires prediction
                         let predict = predictor_mut.as_mut().get_prediction(branch.inst_addr);
-                        branch_mispred_counts[entry.get_br_index()] +=
-                            (predict != entry.get_taken()) as usize;
+                        if i > args.warmup {
+                            branch_mispred_counts[entry.get_br_index()] +=
+                                (predict != entry.get_taken()) as usize;
+                        }
 
                         // update
                         predictor_mut.as_mut().update_predictor(
@@ -93,6 +107,10 @@ fn main() -> anyhow::Result<()> {
                     }
                 }
                 pbar.update(buf_u16.len())?;
+
+                if i > args.warmup + args.simulation {
+                    break;
+                }
             }
             Err(err) => {
                 return Err(anyhow::anyhow!(
@@ -117,7 +135,6 @@ fn main() -> anyhow::Result<()> {
     for (((execution_count, taken_count), mispred_count), branch) in items.iter().rev().take(10) {
         table.push(vec![
             format!("0x{:08x}", branch.inst_addr).cell(),
-            format!("{:?}", branch.branch_type).cell(),
             execution_count.cell(),
             mispred_count.cell(),
             format!(
@@ -134,8 +151,8 @@ fn main() -> anyhow::Result<()> {
     }
     let table = table.table().title(vec![
         "Branch PC".cell(),
-        "Branch Type".cell(),
         "Execution Count".cell(),
+        "Misprediction Count".cell(),
         "Taken Rate (%)".cell(),
         "Misprediction Rate (%)".cell(),
     ]);
