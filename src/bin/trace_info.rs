@@ -134,6 +134,7 @@ fn main() -> anyhow::Result<()> {
     // perf stat reported: 110979252909 instructions
     // counted: 110976357974 instructions
     // error less than 0.01%
+    // slow down of counting instructions: 18s -> 38s, roughly 2x
     if args.elf.is_some() {
         println!("Executed {} instructions", instructions);
     }
