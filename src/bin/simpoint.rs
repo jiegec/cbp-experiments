@@ -6,8 +6,9 @@ use linfa::{
     traits::{Fit, Predict},
 };
 use linfa_clustering::KMeans;
-use ndarray::{Array2, Axis, array};
-use std::{path::PathBuf, ptr::null};
+use matplotlib::{Matplotlib, MatplotlibOpts, Mpl, Run, commands as c, serde_json::Value};
+use ndarray::{Array2, Axis};
+use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -32,6 +33,43 @@ pub struct BranchInfo {
 pub struct SimPoint {
     start_instruction: u64,
     basic_block_vector: Vec<f64>,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct CustomPrelude;
+
+impl Matplotlib for CustomPrelude {
+    fn is_prelude(&self) -> bool {
+        true
+    }
+
+    fn data(&self) -> Option<Value> {
+        None
+    }
+
+    fn py_cmd(&self) -> String {
+        "\
+import datetime
+import io
+import json
+import os
+import random
+import sys
+import matplotlib
+matplotlib.use(\"Agg\")
+import matplotlib.path as mpath
+import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
+import matplotlib.cm as mcm
+import matplotlib.colors as mcolors
+import matplotlib.collections as mcollections
+import matplotlib.ticker as mticker
+import matplotlib.image as mimage
+from mpl_toolkits.mplot3d import axes3d
+import numpy as np
+"
+        .into()
+    }
 }
 
 fn main() -> anyhow::Result<()> {
@@ -101,6 +139,10 @@ fn main() -> anyhow::Result<()> {
         }
 
         pbar.inc(entries.len() as u64);
+
+        // if instructions >= 15000000000 {
+        //     break;
+        // }
     }
     pbar.finish();
 
@@ -125,7 +167,7 @@ fn main() -> anyhow::Result<()> {
         }
     }
     let dataset = Dataset::from(vectors.clone());
-    let mut models: Vec<(KMeans<_, _>, f64)> = (2..=20)
+    let mut models: Vec<(KMeans<_, _>, f64)> = (10..=10)
         .map(|nclusters| {
             let model = KMeans::params(nclusters)
                 .tolerance(1e-2)
@@ -179,6 +221,21 @@ fn main() -> anyhow::Result<()> {
     models.sort_by(|left, right| left.1.partial_cmp(&right.1).unwrap());
 
     println!("Result: {:?}", models);
+
+    let best_model = &models[models.len() - 1].0;
+    // find nearest cluster centroids
+    let prediction = best_model.predict(&dataset);
+    Mpl::new()
+        & CustomPrelude
+        & c::DefInit
+        & c::plot(
+            (0..simpoints.len()).map(|num| num as f64),
+            prediction.map(|num| *num as f64),
+        )
+        .o("marker", "x")
+        .o("linestyle", "")
+        | Run::Save(PathBuf::from("simpoint.png"));
+    println!("{}", prediction);
 
     Ok(())
 }

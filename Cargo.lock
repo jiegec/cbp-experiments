@@ -124,6 +124,7 @@ dependencies = [
  "indicatif",
  "linfa",
  "linfa-clustering",
+ "matplotlib",
  "ndarray",
  "object",
  "zstd",
@@ -577,6 +578,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
 
 [[package]]
+name = "matplotlib"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78b11f469e8812222b4a2b78fc11a600eadb18f40398c1d3bd72a8c70cbf16ca"
+dependencies = [
+ "rand",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "matrixmultiply"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -873,6 +885,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "serde_json"
+version = "1.0.140"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20068b6e96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b99373"
+dependencies = [
+ "itoa",
+ "memchr",
+ "ryu",
+ "serde",
 ]
 
 [[package]]
