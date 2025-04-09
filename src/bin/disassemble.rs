@@ -1,3 +1,4 @@
+/// Dump assemblies of ELF binary
 use capstone::prelude::*;
 use clap::Parser;
 use object::{Object, ObjectSection, SectionKind};

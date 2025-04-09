@@ -1,3 +1,4 @@
+/// Test branch prediction accuracy
 use cbp_experiments::ffi::new_predictor;
 use cbp_experiments::{Branch, BranchType, TraceFile, get_tqdm_style};
 use clap::Parser;

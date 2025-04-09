@@ -1,7 +1,8 @@
+/// Display info and statistics of trace file
 use cbp_experiments::{Branch, BranchType, TraceFile, get_tqdm_style};
 use clap::Parser;
 use cli_table::{Cell, Table, print_stdout};
-use std::{fmt::Write, path::PathBuf};
+use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
