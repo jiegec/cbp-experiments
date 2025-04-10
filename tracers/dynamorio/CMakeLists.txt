@@ -8,6 +8,7 @@ find_package(zstd REQUIRED)
 
 add_library(brtrace SHARED brtrace.c utils.c)
 target_link_libraries(brtrace zstd)
+target_include_directories(brtrace PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../common")
 
 find_package(DynamoRIO)
 if (NOT DynamoRIO_FOUND)
