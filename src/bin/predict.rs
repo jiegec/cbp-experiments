@@ -73,6 +73,7 @@ fn main() -> anyhow::Result<()> {
 
     let mut last_targ_addr_index = None;
     let mut instructions = 0;
+    let mut first_simulate = true;
     for entries in file.entries()? {
         for entry in entries {
             let br_index = entry.get_br_index();
@@ -89,14 +90,19 @@ fn main() -> anyhow::Result<()> {
                 last_targ_addr_index = Some(branch_infos[br_index].targ_addr_index);
             }
 
-            if instructions <= args.skip {
+            if instructions < args.skip {
                 continue;
             }
 
             // collect statistics
-            if instructions > args.skip + args.warmup {
+            if instructions >= args.skip + args.warmup {
                 branch_infos[entry.get_br_index()].execution_count += 1;
                 branch_infos[entry.get_br_index()].taken_count += entry.get_taken() as u64;
+            }
+
+            if instructions >= args.skip + args.warmup && first_simulate {
+                println!("Simulation begins at instruction {}", instructions);
+                first_simulate = false;
             }
 
             // predict or train
@@ -104,7 +110,7 @@ fn main() -> anyhow::Result<()> {
             if branch.branch_type == BranchType::ConditionalDirectJump {
                 // requires prediction
                 let predict = predictor_mut.as_mut().get_prediction(branch.inst_addr);
-                if instructions > args.skip + args.warmup {
+                if instructions >= args.skip + args.warmup {
                     branch_infos[entry.get_br_index()].mispred_count +=
                         (predict != entry.get_taken()) as u64;
                 }
@@ -126,12 +132,16 @@ fn main() -> anyhow::Result<()> {
                     branch.targ_addr,
                 );
             }
+
+            if instructions >= args.skip + args.warmup + args.simulate {
+                break;
+            }
         }
 
-        if instructions <= args.skip {
+        if instructions < args.skip {
             pbar.set_length(args.skip as u64);
             pbar.set_position(instructions as u64);
-        } else if instructions <= args.skip + args.warmup {
+        } else if instructions < args.skip + args.warmup {
             pbar.set_length(args.warmup as u64);
             pbar.set_position((instructions - args.skip) as u64);
         } else {
@@ -139,12 +149,13 @@ fn main() -> anyhow::Result<()> {
             pbar.set_position((instructions - args.skip - args.warmup) as u64);
         }
 
-        if instructions > args.skip + args.warmup + args.simulate {
+        if instructions >= args.skip + args.warmup + args.simulate {
             break;
         }
     }
 
     pbar.finish();
+    println!("Simulation ends at instruction {}", instructions);
 
     println!("Top branches by misprediction count:");
     let mut items: Vec<(&BranchInfo, &Branch)> = branch_infos.iter().zip(file.branches).collect();
