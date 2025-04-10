@@ -36,7 +36,7 @@ fn main() -> anyhow::Result<()> {
             let content = section.data()?;
             let insns = cs.disasm_all(content, section.address())?;
             for insn in insns.as_ref() {
-                let detail: InsnDetail = cs.insn_detail(&insn).expect("Failed to get insn detail");
+                let detail: InsnDetail = cs.insn_detail(insn).expect("Failed to get insn detail");
                 let groups: Vec<Option<String>> = detail
                     .groups()
                     .iter()

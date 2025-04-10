@@ -33,16 +33,26 @@ pub struct BranchInfo {
     targ_addr_index: usize,
 }
 
+/// SimPoint slice: a slice is a part of the full simulation trace
 #[derive(Debug, Clone, Default)]
 pub struct SimPointSlice {
+    /// the starting instruction
     start_instruction: u64,
+    /// the ending instruction
+    end_instruction: u64,
+    /// basic block vector: the instructions executed in each basic block (marked by the trailing branch), normalized
     basic_block_vector: Vec<f64>,
 }
 
+/// SimPoint phase: a phase is a cluster
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct SimPointPhase {
-    weight: u64,            // the number of slices in the phase
-    start_instruction: u64, // the starting instruction of the representative slice
+    /// the number of slices in the phase
+    weight: u64,
+    /// the starting instruction of the representative slice
+    start_instruction: u64,
+    /// the ending instruction of the representative slice
+    end_instruction: u64,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -149,6 +159,7 @@ fn main() -> anyhow::Result<()> {
                 let sum_insts: u64 = current_simpoint_basic_block_vector.iter().sum();
                 slices.push(SimPointSlice {
                     start_instruction: current_simpoint_start_instruction,
+                    end_instruction: instructions,
                     // normalize
                     basic_block_vector: current_simpoint_basic_block_vector
                         .iter()
@@ -168,6 +179,7 @@ fn main() -> anyhow::Result<()> {
     let sum_insts: u64 = current_simpoint_basic_block_vector.iter().sum();
     slices.push(SimPointSlice {
         start_instruction: current_simpoint_start_instruction,
+        end_instruction: instructions,
         // normalize
         basic_block_vector: current_simpoint_basic_block_vector
             .iter()
@@ -245,9 +257,7 @@ fn main() -> anyhow::Result<()> {
     let threshold = smallest_score * 0.1 + largest_score * 0.9;
 
     let best_model = &models
-        .iter()
-        .filter(|model| model.1 >= threshold)
-        .next()
+        .iter().find(|model| model.1 >= threshold)
         .unwrap()
         .0;
 
@@ -288,6 +298,7 @@ fn main() -> anyhow::Result<()> {
         phases.push(SimPointPhase {
             weight: phase_weights[i],
             start_instruction: slices[phase_nearest[i].unwrap().0].start_instruction,
+            end_instruction: slices[phase_nearest[i].unwrap().0].end_instruction,
         });
     }
 
