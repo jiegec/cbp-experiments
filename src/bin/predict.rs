@@ -146,15 +146,6 @@ fn main() -> anyhow::Result<()> {
 
     pbar.finish();
 
-    // compute mpki
-    let total_mispred_count: u64 = branch_infos.iter().map(|info| info.mispred_count).sum();
-    println!(
-        "MPKI: {:.2} = {} * 1000 / {}",
-        total_mispred_count as f64 * 1000.0 / args.simulate as f64,
-        total_mispred_count,
-        args.simulate
-    );
-
     println!("Top branches by misprediction count:");
     let mut items: Vec<(&BranchInfo, &Branch)> = branch_infos.iter().zip(file.branches).collect();
 
@@ -185,6 +176,74 @@ fn main() -> anyhow::Result<()> {
         "Misprediction Rate (%)".cell(),
     ]);
     print_stdout(table)?;
+
+    // find hard to predict branches:
+    // 1. less than 99% prediction accuracy
+    // 2. execute at least 15000 times per 30M instructions
+    // 3. generate at least 1000 mispredictions per 30M instructions
+    let mut h2p_mispred_count = 0;
+    let mut h2p_count = 0;
+    for (info, _) in items.iter() {
+        let accuracy = 1.0 - info.mispred_count as f64 * 100.0 / info.execution_count as f64;
+        if accuracy >= 0.99 {
+            continue;
+        }
+
+        if info.execution_count as f64 / args.simulate as f64 * 30000000.0 < 15000.0 {
+            continue;
+        }
+
+        if info.mispred_count as f64 / args.simulate as f64 * 30000000.0 < 1000.0 {
+            continue;
+        }
+
+        // this is a hard to predict branch
+        // println!("Found hard to predict branch {:x?} {:x?}", branch, info);
+        h2p_mispred_count += info.mispred_count;
+        h2p_count += 1;
+    }
+
+    println!("Overall statistics:");
+    // compute mpki
+    let total_cond_execution_count: u64 = branch_infos
+        .iter()
+        .zip(file.branches)
+        .filter(|(_, branch)| branch.branch_type == BranchType::ConditionalDirectJump)
+        .map(|(info, _)| info.execution_count)
+        .sum();
+    let total_mispred_count: u64 = branch_infos.iter().map(|info| info.mispred_count).sum();
+    println!(
+        "- MPKI: {:.2} = {} * 1000 / {}",
+        total_mispred_count as f64 * 1000.0 / args.simulate as f64,
+        total_mispred_count,
+        args.simulate
+    );
+    println!(
+        "- Prediction accuracy: {:.2}% = {} / {}",
+        100.0 - total_mispred_count as f64 * 100.0 / total_cond_execution_count as f64,
+        total_cond_execution_count - total_mispred_count,
+        total_cond_execution_count
+    );
+    println!(
+        "- Prediction accuracy excluding H2P branches: {:.2}% = {} / {}",
+        100.0
+            - (total_mispred_count - h2p_mispred_count) as f64 * 100.0
+                / total_cond_execution_count as f64,
+        total_cond_execution_count - (total_mispred_count - h2p_mispred_count),
+        total_cond_execution_count
+    );
+    println!(
+        "- Misprediction rate due to H2P branches: {:.2}% = {} / {}",
+        h2p_mispred_count as f64 * 100.0 / total_mispred_count as f64,
+        h2p_mispred_count,
+        total_mispred_count
+    );
+    println!(
+        "- H2P branches rate: {:.2}% = {} / {}",
+        h2p_count as f64 * 100.0 / file.num_brs as f64,
+        h2p_count,
+        file.num_brs
+    );
 
     Ok(())
 }

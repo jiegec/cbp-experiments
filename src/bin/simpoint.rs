@@ -256,10 +256,7 @@ fn main() -> anyhow::Result<()> {
     let largest_score = models[models.len() - 1].1;
     let threshold = smallest_score * 0.1 + largest_score * 0.9;
 
-    let best_model = &models
-        .iter().find(|model| model.1 >= threshold)
-        .unwrap()
-        .0;
+    let best_model = &models.iter().find(|model| model.1 >= threshold).unwrap().0;
 
     // find nearest cluster centroids
     let prediction = best_model.predict(&dataset);

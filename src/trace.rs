@@ -101,8 +101,8 @@ impl<'a> TraceFile<'a> {
 
         let branches: &[Branch] = unsafe {
             std::slice::from_raw_parts(
-                &content[content.len() - 16 - std::mem::size_of::<Branch>() * num_brs]
-                    as *const u8 as *const Branch,
+                &content[content.len() - 16 - std::mem::size_of::<Branch>() * num_brs] as *const u8
+                    as *const Branch,
                 num_brs,
             )
         };
