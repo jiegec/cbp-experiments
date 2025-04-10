@@ -253,6 +253,12 @@ fn main() -> anyhow::Result<()> {
         h2p_mispred_count,
     );
     println!(
+        "- Prediction accuracy of hard to predict conditional branches: {:.2}% = 1 - {} / {}",
+        100.0 - h2p_mispred_count as f64 * 100.0 / h2p_execute_count as f64,
+        h2p_mispred_count,
+        h2p_execute_count
+    );
+    println!(
         "- Prediction accuracy of conditional branches excluding hard to predict conditional branches: {:.2}% = 1 - {} / {}",
         100.0
             - (total_mispred_count - h2p_mispred_count) as f64 * 100.0
