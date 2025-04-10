@@ -8,19 +8,23 @@ use linfa::{
 use linfa_clustering::KMeans;
 use matplotlib::{Matplotlib, MatplotlibOpts, Mpl, Run, commands as c, serde_json::Value};
 use ndarray::{Array2, Axis};
+use serde::Serialize;
 use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {
     /// Path to trace file
-    trace: PathBuf,
+    trace_path: PathBuf,
 
-    /// Path to ELF file
-    elf: PathBuf,
+    /// Path to executable file
+    exe_path: PathBuf,
 
     /// SimPoint slice size in instructions
     size: u64,
+
+    /// Path to output json
+    output_path: PathBuf,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -30,9 +34,27 @@ pub struct BranchInfo {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct SimPoint {
+pub struct SimPointSlice {
     start_instruction: u64,
     basic_block_vector: Vec<f64>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct SimPointPhase {
+    weight: u64,            // the number of slices in the phase
+    start_instruction: u64, // the starting instruction of the representative slice
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct SimPointResult {
+    /// Path to trace file
+    trace_path: PathBuf,
+    /// Path to executable file
+    exe_path: PathBuf,
+    /// SimPoint slice size in instructions
+    size: u64,
+    /// SimPoint phases
+    phases: Vec<SimPointPhase>,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -74,7 +96,7 @@ import numpy as np
 
 fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
-    let content = std::fs::read(args.trace)?;
+    let content = std::fs::read(&args.trace_path)?;
 
     // parse trace file
     let file = TraceFile::open(&content);
@@ -84,7 +106,7 @@ fn main() -> anyhow::Result<()> {
     );
 
     // create a mapping from instruction address to instruction index for instruction counting
-    let mapping = create_insn_index_mapping(&args.elf)?;
+    let mapping = create_insn_index_mapping(&args.exe_path)?;
 
     let mut branch_infos = vec![BranchInfo::default(); file.num_brs];
 
@@ -99,7 +121,7 @@ fn main() -> anyhow::Result<()> {
 
     let mut last_targ_addr_index = None;
     let mut instructions = 0;
-    let mut simpoints: Vec<SimPoint> = vec![];
+    let mut slices: Vec<SimPointSlice> = vec![];
     let mut current_simpoint_start_instruction = 0;
     let mut current_simpoint_basic_block_vector = vec![0u64; file.num_brs];
     for entries in file.entries()? {
@@ -125,7 +147,7 @@ fn main() -> anyhow::Result<()> {
             if instructions >= args.size + current_simpoint_start_instruction {
                 // create a new simpoint
                 let sum_insts: u64 = current_simpoint_basic_block_vector.iter().sum();
-                simpoints.push(SimPoint {
+                slices.push(SimPointSlice {
                     start_instruction: current_simpoint_start_instruction,
                     // normalize
                     basic_block_vector: current_simpoint_basic_block_vector
@@ -139,16 +161,12 @@ fn main() -> anyhow::Result<()> {
         }
 
         pbar.inc(entries.len() as u64);
-
-        // if instructions >= 15000000000 {
-        //     break;
-        // }
     }
     pbar.finish();
 
     // create a new simpoint
     let sum_insts: u64 = current_simpoint_basic_block_vector.iter().sum();
-    simpoints.push(SimPoint {
+    slices.push(SimPointSlice {
         start_instruction: current_simpoint_start_instruction,
         // normalize
         basic_block_vector: current_simpoint_basic_block_vector
@@ -157,22 +175,23 @@ fn main() -> anyhow::Result<()> {
             .collect(),
     });
 
-    println!("Collected {} SimPoints", simpoints.len());
+    println!("Collected {} SimPoints", slices.len());
 
     // kmeans
-    let mut vectors = Array2::<f64>::zeros((simpoints.len(), file.num_brs));
-    for (i, simpoint) in simpoints.iter().enumerate() {
+    let mut vectors = Array2::<f64>::zeros((slices.len(), file.num_brs));
+    for (i, simpoint) in slices.iter().enumerate() {
         for (j, val) in simpoint.basic_block_vector.iter().enumerate() {
             vectors[[i, j]] = *val;
         }
     }
     let dataset = Dataset::from(vectors.clone());
-    let mut models: Vec<(KMeans<_, _>, f64)> = (10..=10)
-        .map(|nclusters| {
-            let model = KMeans::params(nclusters)
+    let mut models: Vec<(KMeans<_, _>, f64)> = (1..=20)
+        .map(|num_clusters| {
+            let model = KMeans::params(num_clusters)
                 .tolerance(1e-2)
                 .fit(&dataset)
                 .unwrap();
+
             // compute BIC(Bayesian Information Criterion)
             // parameters:
             // R: the number of points in the data i.e. simpoints.len()
@@ -181,14 +200,14 @@ fn main() -> anyhow::Result<()> {
             // Ri: the number of points in the i-th cluster
             // sigma^2: the average variance from each point to its cluster center of the i-th cluster
             // BIC = sum(-Ri*log(2*pi)/2-Ri*d*log(sigma^2)/2-(Ri-1)/2+Ri*log(Ri/R))-(k+d*k)*log(R)/2
-            let r = simpoints.len();
+            let r = slices.len();
             let d = file.num_brs;
-            let k = nclusters;
-            let mut ri = vec![0; nclusters];
-            let mut sigma = vec![0f64; nclusters];
+            let k = num_clusters;
+            let mut ri = vec![0; num_clusters];
+            let mut sigma = vec![0f64; num_clusters];
             // find nearest cluster centroids
             let prediction = model.predict(&dataset);
-            for i in 0..simpoints.len() {
+            for i in 0..slices.len() {
                 let cluster = prediction[i];
                 ri[cluster] += 1;
                 let closest_centroid = &model.centroids().index_axis(Axis(0), cluster);
@@ -220,22 +239,81 @@ fn main() -> anyhow::Result<()> {
 
     models.sort_by(|left, right| left.1.partial_cmp(&right.1).unwrap());
 
-    println!("Result: {:?}", models);
+    // find the first model that: larger than 90% of the spread between the largest and smallest BIC
+    let smallest_score = models[0].1;
+    let largest_score = models[models.len() - 1].1;
+    let threshold = smallest_score * 0.1 + largest_score * 0.9;
 
-    let best_model = &models[models.len() - 1].0;
+    let best_model = &models
+        .iter()
+        .filter(|model| model.1 >= threshold)
+        .next()
+        .unwrap()
+        .0;
+
     // find nearest cluster centroids
     let prediction = best_model.predict(&dataset);
+    let num_clusters = best_model.cluster_count().dim();
+    println!("Got {} clusters", num_clusters);
+
+    // for each cluster (phase):
+    // 1. count points that belong to it
+    // 2. find the nearest point to it
+    let mut phase_weights = vec![0; num_clusters];
+    let mut phase_nearest = vec![None; num_clusters];
+
+    for i in 0..slices.len() {
+        let cluster = prediction[i];
+        phase_weights[cluster] += 1;
+        // compute distance
+        let mut dist = 0.0;
+        for j in 0..file.num_brs {
+            let diff = vectors[[i, j]] - best_model.centroids()[[cluster, j]];
+            dist += diff * diff;
+        }
+        match phase_nearest[cluster] {
+            None => {
+                phase_nearest[cluster] = Some((i, dist));
+            }
+            Some((_, old_dist)) if old_dist > dist => {
+                phase_nearest[cluster] = Some((i, dist));
+            }
+            _ => {}
+        }
+    }
+
+    // save simpoint phases
+    let mut phases = vec![];
+    for i in 0..num_clusters {
+        phases.push(SimPointPhase {
+            weight: phase_weights[i],
+            start_instruction: slices[phase_nearest[i].unwrap().0].start_instruction,
+        });
+    }
+
+    let result = SimPointResult {
+        trace_path: args.trace_path.clone(),
+        exe_path: args.exe_path.clone(),
+        size: args.size,
+        phases,
+    };
+
+    std::fs::write(&args.output_path, serde_json::to_vec_pretty(&result)?)?;
+    println!("Result written to {}", args.output_path.display());
+
+    // plot
     Mpl::new()
         & CustomPrelude
         & c::DefInit
         & c::plot(
-            (0..simpoints.len()).map(|num| num as f64),
+            (0..slices.len()).map(|num| num as f64),
             prediction.map(|num| *num as f64),
         )
-        .o("marker", "x")
+        .o("marker", "s")
         .o("linestyle", "")
+        & c::yticks((0..num_clusters).map(|num| num as f64))
         | Run::Save(PathBuf::from("simpoint.png"));
-    println!("{}", prediction);
+    println!("Visualization generated to simpoint.png");
 
     Ok(())
 }

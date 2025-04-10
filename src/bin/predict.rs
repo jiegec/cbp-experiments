@@ -9,13 +9,13 @@ use std::path::PathBuf;
 #[command(version, about, long_about = None)]
 struct Cli {
     /// Path to trace file
-    trace: PathBuf,
+    trace_path: PathBuf,
 
     /// Predictor name
     predictor: String,
 
-    /// Path to ELF file
-    elf: PathBuf,
+    /// Path to executable file
+    exe_path: PathBuf,
 
     /// Skip count in instructions
     #[arg(default_value = "0")]
@@ -41,7 +41,7 @@ pub struct BranchInfo {
 
 fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
-    let content = std::fs::read(args.trace)?;
+    let content = std::fs::read(args.trace_path)?;
 
     // parse trace file
     let file = TraceFile::open(&content);
@@ -58,7 +58,7 @@ fn main() -> anyhow::Result<()> {
     let mut predictor_mut = predictor.as_mut().unwrap();
 
     // create a mapping from instruction address to instruction index for instruction counting
-    let mapping = create_insn_index_mapping(&args.elf)?;
+    let mapping = create_insn_index_mapping(&args.exe_path)?;
 
     let mut branch_infos = vec![BranchInfo::default(); file.num_brs];
 

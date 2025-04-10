@@ -8,8 +8,8 @@ use std::path::PathBuf;
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {
-    /// Path to ELF file
-    elf: PathBuf,
+    /// Path to executable file
+    exe_path: PathBuf,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -22,7 +22,7 @@ fn main() -> anyhow::Result<()> {
         .detail(true)
         .build()?;
 
-    let binary_data = std::fs::read(args.elf)?;
+    let binary_data = std::fs::read(args.exe_path)?;
     let file = object::File::parse(&*binary_data)?;
     let jump = Some("jump".to_string());
     let branch_relative = Some("branch_relative".to_string());

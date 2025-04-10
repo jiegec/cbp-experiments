@@ -9,10 +9,10 @@ use std::path::PathBuf;
 #[command(version, about, long_about = None)]
 struct Cli {
     /// Path to trace file
-    trace: PathBuf,
+    trace_path: PathBuf,
 
-    /// Path to ELF file
-    elf: Option<PathBuf>,
+    /// Path to executable file
+    exe_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -25,7 +25,7 @@ pub struct BranchInfo {
 
 fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
-    let content = std::fs::read(args.trace)?;
+    let content = std::fs::read(args.trace_path)?;
     // parse trace file
     let file = TraceFile::open(&content);
     println!(
@@ -66,14 +66,14 @@ fn main() -> anyhow::Result<()> {
 
     // create a mapping from instruction address to instruction index for instruction counting
     let mut mapping: HashMap<u64, usize> = HashMap::new();
-    if let Some(elf) = &args.elf {
+    if let Some(elf) = &args.exe_path {
         mapping = create_insn_index_mapping(elf)?;
     }
 
     let mut branch_infos = vec![BranchInfo::default(); file.num_brs];
 
     // preprocess instruction indices for all branches
-    if args.elf.is_some() {
+    if args.exe_path.is_some() {
         for (i, branch) in file.branches.iter().enumerate() {
             branch_infos[i].inst_addr_index = *mapping.get(&branch.inst_addr).unwrap();
             branch_infos[i].targ_addr_index = *mapping.get(&branch.targ_addr).unwrap();
@@ -93,7 +93,7 @@ fn main() -> anyhow::Result<()> {
             branch_infos[br_index].taken_count += taken as u64;
 
             // add instruction counting if elf is provided
-            if args.elf.is_some() && taken {
+            if args.exe_path.is_some() && taken {
                 let curr_index = branch_infos[br_index].inst_addr_index;
                 if let Some(last_index) = last_targ_addr_index {
                     // count instructions from last target address to the current branch address
@@ -113,7 +113,7 @@ fn main() -> anyhow::Result<()> {
     // counted: 110976357974 instructions
     // error less than 0.01%
     // slow down of counting instructions: 18s -> 38s, roughly 2x
-    if args.elf.is_some() {
+    if args.exe_path.is_some() {
         println!("Executed {} instructions", instructions);
     }
 

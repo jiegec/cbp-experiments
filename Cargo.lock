@@ -127,6 +127,8 @@ dependencies = [
  "matplotlib",
  "ndarray",
  "object",
+ "serde",
+ "serde_json",
  "zstd",
 ]
 
