@@ -210,8 +210,16 @@ fn main() -> anyhow::Result<()> {
         .iter()
         .filter(|branch| branch.branch_type == BranchType::ConditionalDirectJump)
         .count();
+    let num_cond_brs_executed = file
+        .branches
+        .iter()
+        .zip(&branch_infos)
+        .filter(|(branch, info)| {
+            branch.branch_type == BranchType::ConditionalDirectJump && info.execution_count > 0
+        })
+        .count();
 
-    println!("Overall statistics:");
+    println!("Overall statistics (H2P branches means hard to predict conditional branches):");
     // compute mpki
     let total_cond_execution_count: u64 = branch_infos
         .iter()
@@ -220,6 +228,14 @@ fn main() -> anyhow::Result<()> {
         .map(|(info, _)| info.execution_count)
         .sum();
     let total_mispred_count: u64 = branch_infos.iter().map(|info| info.mispred_count).sum();
+    println!(
+        "- Number of conditional branches (total static branches): {}",
+        num_cond_brs,
+    );
+    println!(
+        "- Number of conditional branches executed at least once (static branches per slice): {}",
+        num_cond_brs_executed,
+    );
     println!(
         "- Conditional branch mispredictions: {}",
         total_mispred_count,
@@ -241,25 +257,31 @@ fn main() -> anyhow::Result<()> {
         total_cond_execution_count
     );
     println!(
-        "- Number of hard to predict conditional branches: {}",
+        "- Number of H2P conditional branches (static H2P branches): {}",
         h2p_count,
     );
     println!(
-        "- Executed hard to predict conditional branches: {}",
+        "- Execution count of H2P branches (dynamic executions of H2P branches): {}",
         h2p_execute_count,
     );
     println!(
-        "- Mispredictions due to hard to predict conditional branches: {}",
+        "- Execution count per H2P branches (dynamic executions per H2P branches): {:.2} = {} / {}",
+        h2p_execute_count as f64 / h2p_count as f64,
+        h2p_execute_count,
+        h2p_count
+    );
+    println!(
+        "- Mispredictions due to H2P branches: {}",
         h2p_mispred_count,
     );
     println!(
-        "- Prediction accuracy of hard to predict conditional branches: {:.2}% = 1 - {} / {}",
+        "- Prediction accuracy of H2P branches: {:.2}% = 1 - {} / {}",
         100.0 - h2p_mispred_count as f64 * 100.0 / h2p_execute_count as f64,
         h2p_mispred_count,
         h2p_execute_count
     );
     println!(
-        "- Prediction accuracy of conditional branches excluding hard to predict conditional branches: {:.2}% = 1 - {} / {}",
+        "- Prediction accuracy of conditional branches excluding H2P branches: {:.2}% = 1 - {} / {}",
         100.0
             - (total_mispred_count - h2p_mispred_count) as f64 * 100.0
                 / (total_cond_execution_count - h2p_execute_count) as f64,
@@ -267,13 +289,13 @@ fn main() -> anyhow::Result<()> {
         total_cond_execution_count - h2p_execute_count
     );
     println!(
-        "- Conditional branch mispredictions due to hard to predict conditional branches: {:.2}% = {} / {}",
+        "- Conditional branch mispredictions due to H2P branches: {:.2}% = {} / {}",
         h2p_mispred_count as f64 * 100.0 / total_mispred_count as f64,
         h2p_mispred_count,
         total_mispred_count
     );
     println!(
-        "- Ratio of hard to predict conditional branches to all conditional branches: {:.2}% = {} / {}",
+        "- Ratio of H2P branches to all conditional branches: {:.2}% = {} / {}",
         h2p_count as f64 * 100.0 / file.num_brs as f64,
         h2p_count,
         num_cond_brs
