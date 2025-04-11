@@ -1,6 +1,7 @@
 /// Test branch prediction accuracy
 use cbp_experiments::{TraceFile, create_insn_index_mapping, get_tqdm_style};
 use clap::Parser;
+use indicatif::ProgressIterator;
 use linfa::{
     Dataset,
     traits::{Fit, Predict},
@@ -159,14 +160,14 @@ fn main() -> anyhow::Result<()> {
                 let sum_insts: u64 = current_simpoint_basic_block_vector.iter().sum();
                 slices.push(SimPointSlice {
                     start_instruction: current_simpoint_start_instruction,
-                    end_instruction: instructions,
+                    end_instruction: args.size + current_simpoint_start_instruction,
                     // normalize
                     basic_block_vector: current_simpoint_basic_block_vector
                         .iter()
                         .map(|val| *val as f64 / sum_insts as f64)
                         .collect(),
                 });
-                current_simpoint_start_instruction = instructions;
+                current_simpoint_start_instruction += args.size;
                 current_simpoint_basic_block_vector.fill(0);
             }
         }
@@ -179,7 +180,7 @@ fn main() -> anyhow::Result<()> {
     let sum_insts: u64 = current_simpoint_basic_block_vector.iter().sum();
     slices.push(SimPointSlice {
         start_instruction: current_simpoint_start_instruction,
-        end_instruction: instructions,
+        end_instruction: args.size + current_simpoint_start_instruction,
         // normalize
         basic_block_vector: current_simpoint_basic_block_vector
             .iter()
@@ -187,7 +188,7 @@ fn main() -> anyhow::Result<()> {
             .collect(),
     });
 
-    println!("Collected {} SimPoints", slices.len());
+    println!("Collected {} SimPoint slices", slices.len());
 
     // kmeans
     let mut vectors = Array2::<f64>::zeros((slices.len(), file.num_brs));
@@ -197,7 +198,8 @@ fn main() -> anyhow::Result<()> {
         }
     }
     let dataset = Dataset::from(vectors.clone());
-    let mut models: Vec<(KMeans<_, _>, f64)> = (1..=20)
+    let mut models: Vec<(KMeans<_, _>, f64)> = (1..21)
+        .progress()
         .map(|num_clusters| {
             let model = KMeans::params(num_clusters)
                 .tolerance(1e-2)
