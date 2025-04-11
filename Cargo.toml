@@ -10,9 +10,11 @@ clap = { version = "4.5.35", features = ["derive"] }
 cli-table = "0.5.0"
 cxx = "1.0.156"
 indicatif = "0.17.11"
+libipt = "0.3.0"
 linfa = "0.7.1"
 linfa-clustering = "0.7.1"
 matplotlib = "0.2.0"
+memmap = "0.7.0"
 ndarray = "0.15.6"
 object = "0.36.7"
 serde = { version = "1.0.219", features = ["derive"] }
