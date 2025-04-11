@@ -1,4 +1,4 @@
-/// Test branch prediction accuracy
+//! Test branch prediction accuracy
 use cbp_experiments::{TraceFile, create_insn_index_mapping, get_tqdm_style};
 use clap::Parser;
 use indicatif::ProgressIterator;

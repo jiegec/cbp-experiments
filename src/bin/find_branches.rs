@@ -1,4 +1,4 @@
-/// Find and classify branches in ELF
+//! Find and classify branches in ELF
 use capstone::prelude::*;
 use cbp_experiments::BranchType;
 use clap::Parser;
