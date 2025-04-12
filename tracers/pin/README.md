@@ -3,13 +3,13 @@
 Build:
 
 ```shell
-make clean all TARGET=intel64 PIN_ROOT=$HOME/pin-external-x.xx/
+make clean all TARGET=intel64 PIN_ROOT=$HOME/prefix/pin
 ```
 
 Run:
 
 ```shell
-$HOME/pin-external-x.xx/pin -t obj-intel64/brtrace.so -- command args
+$HOME/prefix/pin/pin -t obj-intel64/brtrace.so -- command args
 ```
 
 pin tracer on a trimmed leela test (5% of total):

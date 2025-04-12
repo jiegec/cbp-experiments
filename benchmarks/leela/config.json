@@ -1,0 +1,9 @@
+{
+    "benchmarks": [{
+        "name": "leela",
+        "executable": "~/leela_r/leela_r",
+        "commands": [{
+            "args": "~/leela_r/ref.sgf"
+        }]
+    }]
+}
