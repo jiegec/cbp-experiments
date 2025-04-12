@@ -72,13 +72,23 @@ fn compute_ip(data: &[u8], last_ip: u64) -> Option<u64> {
 /// 1. for 6-branch short TNT (0b1xxxxxx0), old_bit = 6, new_bit = 1
 /// 2. for 4-branch short TNT (0b001xxxx0), old_bit = 4, new_bit = 1
 /// 3. for 47-branch long TNT, old_bit = 46, new_bit = 0
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct TNTPacket {
     bits: [u8; 6],
     /// location of the oldest bit
     old_bit: u8,
     /// location of the newest bit
     new_bit: u8,
+}
+
+impl std::fmt::Debug for TNTPacket {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for bit in (self.new_bit..=self.old_bit).rev() {
+            let taken = ((self.bits[(bit / 8) as usize] >> (bit % 8)) & 1) != 0;
+            write!(f, "{}", if taken { "T" } else { "N" })?;
+        }
+        Ok(())
+    }
 }
 
 /// TIP packet, marks target address
@@ -178,7 +188,7 @@ fn parse_intel_pt_packets(data: &[u8]) -> Vec<Packet> {
                     || byte & 0x1f == 0x11
                     || byte & 0x1f == 0x1d =>
             {
-                // TIP.PGD(0x01)/TIP(0x0d)/TIP.PGE(0x11)/FUP packet
+                // TIP.PGD(0x01)/TIP(0x0d)/TIP.PGE(0x11)/FUP(0x1d) packet
                 if let Some(ip) = compute_ip(&data[offset..], last_ip) {
                     // TIP
                     if byte & 0x1f == 0x0d {
