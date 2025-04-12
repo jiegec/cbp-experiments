@@ -66,8 +66,8 @@ fn compute_ip(data: &[u8], last_ip: u64) -> Option<u64> {
 /// encoding:
 /// 1. for 6-branch short TNT (0b1xxxxxx0), old_bit = 6, new_bit = 1
 /// 2. for 4-branch short TNT (0b001xxxx0), old_bit = 4, new_bit = 1
-/// 3. for 47-branch long TNT, old_bit = 62, new_bit = 16
-#[derive(Debug)]
+/// 3. for 47-branch long TNT, old_bit = 46, new_bit = 0
+#[derive(Clone, Copy, Debug)]
 struct TNTPacket {
     bits: [u8; 6],
     /// location of the oldest bit
@@ -77,12 +77,12 @@ struct TNTPacket {
 }
 
 /// TIP packet, marks target address
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 struct TIPPacket {
     target_ip: u64,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 enum Packet {
     TNT(TNTPacket),
     TIP(TIPPacket),
@@ -122,7 +122,7 @@ fn parse_intel_pt_packets(data: &[u8]) -> anyhow::Result<Vec<Packet>> {
                 for i in (2..=7).rev() {
                     if data[offset + i] != 0 {
                         let leading_zeros = data[offset + i].leading_zeros();
-                        old_bit = (i + 1) as u32 * 8 - leading_zeros - 2;
+                        old_bit = (i - 1) as u32 * 8 - leading_zeros - 2;
                         break;
                     }
                 }
@@ -137,7 +137,7 @@ fn parse_intel_pt_packets(data: &[u8]) -> anyhow::Result<Vec<Packet>> {
                         data[offset + 7],
                     ],
                     old_bit: old_bit as u8,
-                    new_bit: 16,
+                    new_bit: 0,
                 }));
                 offset += 8;
             }
