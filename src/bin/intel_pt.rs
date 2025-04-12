@@ -172,7 +172,7 @@ fn parse_intel_pt_packets(data: &[u8]) -> Vec<Packet> {
                 // MODE.Exec packet
                 offset += 2;
             }
-            byte @ _ if byte & 0x01 == 0x00 && byte != 0x02 => {
+            byte if byte & 0x01 == 0x00 && byte != 0x02 => {
                 // Short TNT packet
                 let leading_zeros = byte.leading_zeros();
                 result.push(Packet::TNT(TNTPacket {
@@ -182,7 +182,7 @@ fn parse_intel_pt_packets(data: &[u8]) -> Vec<Packet> {
                 }));
                 offset += 1;
             }
-            byte @ _
+            byte
                 if byte & 0x1f == 0x01
                     || byte & 0x1f == 0x0d
                     || byte & 0x1f == 0x11
@@ -198,7 +198,7 @@ fn parse_intel_pt_packets(data: &[u8]) -> Vec<Packet> {
                 }
                 offset += 1 + compute_ip_bytes(byte);
             }
-            byte @ _ => unimplemented!(
+            byte => unimplemented!(
                 "Unhandled packet byte: 0x{:x} at offset 0x{:x} with context {:x?}",
                 byte,
                 offset,
@@ -223,7 +223,6 @@ pub struct BranchInfo {
 }
 
 pub struct IntelPTIterator {
-    file: File,
     content: Mmap,
     pbar: ProgressBar,
     offset: usize,
@@ -274,7 +273,7 @@ impl Iterator for IntelPTIterator {
         if let Some(packet) = self.packets.pop_front() {
             return Some(packet);
         }
-        return None;
+        None
     }
 }
 
@@ -302,7 +301,6 @@ impl IntelPTIterator {
         pbar.set_style(get_tqdm_style());
 
         Ok(Self {
-            file,
             content,
             pbar,
             offset: data_section_offset,
@@ -448,7 +446,7 @@ fn main() -> anyhow::Result<()> {
                 return Some(find_branch_by_pc(&branches, targ_addr));
             }
 
-            return None;
+            None
         })
         .collect();
     for (branch, targ_addr_branch_index) in branches.iter_mut().zip(targ_addr_branch_indices) {
