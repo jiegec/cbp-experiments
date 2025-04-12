@@ -1,4 +1,4 @@
-//! Parse Intel PT trace in perf.data
+//! Parse Intel PT trace in perf.data and convert to our trace format
 
 use capstone::{
     arch::{

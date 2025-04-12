@@ -1,4 +1,4 @@
-//! Test branch prediction accuracy
+//! Use SimPoint methodology to reduce trace length
 use cbp_experiments::{TraceFileDecoder, create_insn_index_mapping, get_tqdm_style};
 use clap::Parser;
 use indicatif::ProgressIterator;

@@ -38,8 +38,17 @@ enum Commands {
         /// Which tracer to use
         tracer: Tracer,
 
-        /// Benchmark folder name under benchmarks/
-        folder: PathBuf,
+        /// Benchmark config name
+        config_name: PathBuf,
+    },
+    /// Display trace info
+    Info {
+        /// Which tracer to use
+        #[arg(short, long)]
+        tracer: Option<Tracer>,
+
+        /// Benchmark config name
+        config_name: PathBuf,
     },
 }
 
@@ -68,11 +77,16 @@ fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
 
     match &args.command {
-        Commands::Record { tracer, folder } => {
+        Commands::Record {
+            tracer,
+            config_name,
+        } => {
             let tracer_possible_value = tracer.to_possible_value().unwrap();
             let tracer_name = tracer_possible_value.get_name();
             let config: Config = serde_json::from_slice(&std::fs::read(
-                PathBuf::from("benchmarks").join(folder).join("config.json"),
+                PathBuf::from("benchmarks")
+                    .join(config_name)
+                    .join("config.json"),
             )?)?;
 
             for benchmark in &config.benchmarks {
@@ -80,7 +94,7 @@ fn main() -> anyhow::Result<()> {
                     // run: "{benchmark.executable} {command.args}"
                     // generate trace file at "benchmarks/{folder}/traces/{tracer}/{benchmark.name}-{command_index}.log"
                     let dir = PathBuf::from("benchmarks")
-                        .join(folder)
+                        .join(config_name)
                         .join("traces")
                         .join(tracer_name);
                     std::fs::create_dir_all(&dir)?;
@@ -141,7 +155,7 @@ fn main() -> anyhow::Result<()> {
 
                             // conversion
                             let args = format!(
-                                "time target/release/intel_pt {} {} {}",
+                                "time target/release/intel_pt_converter {} {} {}",
                                 perf_data_file.display(),
                                 benchmark.executable,
                                 trace_file.display(),
@@ -157,17 +171,64 @@ fn main() -> anyhow::Result<()> {
 
                     // generate trace file symlink at "benchmarks/{folder}/traces/final/{benchmark.name}-{command_index}.log"
                     let dir = PathBuf::from("benchmarks")
-                        .join(folder)
+                        .join(config_name)
                         .join("traces")
                         .join("final");
                     std::fs::create_dir_all(&dir)?;
+                    let trace_file_relative = PathBuf::from("..")
+                        .join(tracer_name)
+                        .join(format!("{}-{}.log", benchmark.name, command_index));
                     let final_file = dir.join(format!("{}-{}.log", benchmark.name, command_index));
-                    std::os::unix::fs::symlink(&trace_file, &final_file)?;
+                    std::os::unix::fs::symlink(&trace_file_relative, &final_file)?;
                     println!(
                         "Create symlink: {} => {}",
                         final_file.display(),
                         trace_file.display(),
                     );
+                }
+            }
+        }
+        Commands::Info {
+            tracer,
+            config_name,
+        } => {
+            let tracer_name = match tracer {
+                Some(tracer) => {
+                    let tracer_possible_value = tracer.to_possible_value().unwrap();
+                    let tracer_name = tracer_possible_value.get_name();
+                    tracer_name.to_string()
+                }
+                None => "final".to_string(),
+            };
+            let config: Config = serde_json::from_slice(&std::fs::read(
+                PathBuf::from("benchmarks")
+                    .join(config_name)
+                    .join("config.json"),
+            )?)?;
+
+            for benchmark in &config.benchmarks {
+                for (command_index, _command) in benchmark.commands.iter().enumerate() {
+                    // trace file at "benchmarks/{folder}/traces/{tracer}/{benchmark.name}-{command_index}.log"
+                    let dir = PathBuf::from("benchmarks")
+                        .join(config_name)
+                        .join("traces")
+                        .join(&tracer_name);
+                    std::fs::create_dir_all(&dir)?;
+
+                    let trace_file = dir.join(format!("{}-{}.log", benchmark.name, command_index));
+                    println!("Displaying info for {}", trace_file.display());
+
+                    let args = format!(
+                        "target/release/trace_info {} {}",
+                        trace_file.display(),
+                        benchmark.executable,
+                    );
+                    println!("Running {}", args);
+                    let result = std::process::Command::new("sh")
+                        .arg("-c")
+                        .arg(args)
+                        .status()?;
+                    assert!(result.success());
                 }
             }
         }
