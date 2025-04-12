@@ -42,14 +42,17 @@
 #include "dr_api.h"
 #include "drmgr.h"
 #include "hashmap.h"
-#include "utils.h"
 #include <assert.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 #include <zstd.h>
 
 static client_id_t client_id;
 
 static int tls_idx;
+
+static char log_file_name[256] = "brtrace.log";
 
 #define BUFFER_SIZE 16384
 
@@ -209,12 +212,9 @@ int hashmap_comparer(const void *const a, const hashmap_uint32_t a_len,
 
 static void event_thread_init(void *drcontext) {
   file_t log;
-  log = log_file_open(client_id, drcontext, NULL /* using client lib path */,
-                      "brtrace",
-#ifndef WINDOWS
-                      DR_FILE_CLOSE_ON_FORK |
-#endif
-                          DR_FILE_ALLOW_LARGE);
+  log =
+      dr_open_file(log_file_name, DR_FILE_CLOSE_ON_FORK | DR_FILE_ALLOW_LARGE |
+                                      DR_FILE_WRITE_OVERWRITE);
   DR_ASSERT(log != INVALID_FILE);
   struct tls *t = (struct tls *)malloc(sizeof(struct tls));
   t->log = log;
@@ -263,7 +263,7 @@ static void event_thread_exit(void *drcontext) {
   // write number of branches & number of events
   dr_write_file(t->log, &t->num_brs, sizeof(t->num_brs));
   dr_write_file(t->log, &t->num_entries, sizeof(t->num_entries));
-  log_file_close(t->log);
+  dr_close_file(t->log);
   fprintf(stderr, "Finished writing log\n");
 }
 
@@ -281,9 +281,13 @@ static void event_exit(void) {
 
 DR_EXPORT
 void dr_client_main(client_id_t id, int argc, const char *argv[]) {
-  dr_set_client_name("DynamoRIO Sample Client 'brtrace'",
-                     "http://dynamorio.org/issues");
+  dr_set_client_name("brtrace", "");
   dr_log(NULL, DR_LOG_ALL, 1, "Client 'brtrace' initializing");
+
+  if (argc == 2) {
+    snprintf(log_file_name, sizeof(log_file_name), "%s", argv[1]);
+  }
+  dr_log(NULL, DR_LOG_ALL, 1, "Output trace is written at %s", log_file_name);
 
   drmgr_init();
 

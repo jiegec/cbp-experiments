@@ -6,7 +6,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native -O3")
 
 find_package(zstd REQUIRED)
 
-add_library(brtrace SHARED brtrace.c utils.c)
+add_library(brtrace SHARED brtrace.c)
 target_link_libraries(brtrace zstd)
 target_include_directories(brtrace PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../common")
 
@@ -17,4 +17,3 @@ endif(NOT DynamoRIO_FOUND)
 
 configure_DynamoRIO_client(brtrace)
 use_DynamoRIO_extension(brtrace drmgr)
-use_DynamoRIO_extension(brtrace drx)

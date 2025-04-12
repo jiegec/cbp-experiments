@@ -23,6 +23,7 @@ enum Tracer {
     /// Pin tracer
     Pin,
     /// DynamoRIO tracer
+    #[clap(name = "dynamorio")]
     DynamoRIO,
     /// Intel PT tracer
     IntelPT,
@@ -104,7 +105,20 @@ fn main() -> anyhow::Result<()> {
                                 .status()?;
                             assert!(result.success());
                         }
-                        Tracer::DynamoRIO => todo!(),
+                        Tracer::DynamoRIO => {
+                            let args = format!(
+                                "time ~/prefix/dynamorio/bin64/drrun -c tracers/dynamorio/build/libbrtrace.so {} -- {} {}",
+                                trace_file.display(),
+                                benchmark.executable,
+                                command.args
+                            );
+                            println!("Running {}", args);
+                            let result = std::process::Command::new("sh")
+                                .arg("-c")
+                                .arg(args)
+                                .status()?;
+                            assert!(result.success());
+                        }
                         Tracer::IntelPT => {
                             // record intel pt
                             let perf_data_file =
