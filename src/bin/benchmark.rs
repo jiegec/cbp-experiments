@@ -141,7 +141,7 @@ fn main() -> anyhow::Result<()> {
                             let perf_data_file =
                                 dir.join(format!("{}-{}-perf.log", benchmark.name, command_index));
                             let args = format!(
-                                "time numactl -C 0 perf record -e intel_pt//u  -o {} -- {} {}",
+                                "time numactl -C 0 perf record -e intel_pt//u -o {} -- {} {}",
                                 perf_data_file.display(),
                                 benchmark.executable,
                                 command.args
