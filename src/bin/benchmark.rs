@@ -10,6 +10,8 @@ use std::path::PathBuf;
 //    \- traces
 //       \- tracer-name
 //          \- benchmark-name-0.log
+//       \- final
+//          \- benchmark-name-0.log -> ../tracer-name/benchmark-name-0.log
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -82,6 +84,7 @@ fn main() -> anyhow::Result<()> {
                         .join("traces")
                         .join(tracer_name);
                     std::fs::create_dir_all(&dir)?;
+
                     let trace_file = dir.join(format!("{}-{}.log", benchmark.name, command_index));
                     println!(
                         "Generate trace file {} using {}: {} {}",
@@ -151,6 +154,20 @@ fn main() -> anyhow::Result<()> {
                             assert!(result.success());
                         }
                     }
+
+                    // generate trace file symlink at "benchmarks/{folder}/traces/final/{benchmark.name}-{command_index}.log"
+                    let dir = PathBuf::from("benchmarks")
+                        .join(folder)
+                        .join("traces")
+                        .join("final");
+                    std::fs::create_dir_all(&dir)?;
+                    let final_file = dir.join(format!("{}-{}.log", benchmark.name, command_index));
+                    std::os::unix::fs::symlink(&trace_file, &final_file)?;
+                    println!(
+                        "Create symlink: {} => {}",
+                        final_file.display(),
+                        trace_file.display(),
+                    );
                 }
             }
         }
