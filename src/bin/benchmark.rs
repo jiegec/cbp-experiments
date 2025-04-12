@@ -179,6 +179,7 @@ fn main() -> anyhow::Result<()> {
                         .join(tracer_name)
                         .join(format!("{}-{}.log", benchmark.name, command_index));
                     let final_file = dir.join(format!("{}-{}.log", benchmark.name, command_index));
+                    std::fs::remove_file(&final_file).ok();
                     std::os::unix::fs::symlink(&trace_file_relative, &final_file)?;
                     println!(
                         "Create symlink: {} => {}",

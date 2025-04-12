@@ -470,6 +470,7 @@ fn main() -> anyhow::Result<()> {
     let mut call_stack: VecDeque<(u64, usize)> = VecDeque::new();
 
     println!("Reconstructing control from entrypoint 0x{:x}", entry_pc);
+    println!("Writing to trace file at {}", args.output_path.display());
     let output_file = File::create(&args.output_path)?;
     let mut output_trace = TraceFileEncoder::open(&output_file)?;
 
@@ -670,7 +671,7 @@ fn main() -> anyhow::Result<()> {
     println!(
         "Got {} branches and {} entries in output trace",
         output_trace.branches.len(),
-        output_trace.num_entries
+        output_trace.num_entries,
     );
     output_trace.finish()?;
 
