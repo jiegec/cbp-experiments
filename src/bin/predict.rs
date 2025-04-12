@@ -1,5 +1,5 @@
 //! Test branch prediction accuracy
-use cbp_experiments::ffi::new_predictor;
+use cbp_experiments::new_predictor;
 use cbp_experiments::{Branch, BranchType, TraceFile, create_insn_index_mapping, get_tqdm_style};
 use clap::Parser;
 use cli_table::{Cell, Table, print_stdout};

@@ -11,7 +11,7 @@ use cbp_experiments::{BranchType, get_tqdm_style};
 use clap::Parser;
 use memmap::MmapOptions;
 use object::{Object, ObjectSection, SectionKind};
-use std::{collections::BTreeMap, fs::File, path::PathBuf};
+use std::{collections::VecDeque, fs::File, path::PathBuf};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -42,7 +42,6 @@ fn compute_ip(data: &[u8], last_ip: u64) -> Option<u64> {
     for i in 0..ip_bytes {
         target_ip |= (data[i + 1] as u64) << (i * 8);
     }
-    let mut result = 0;
 
     // combine
     match data[0] >> 5 {
@@ -68,6 +67,7 @@ fn compute_ip(data: &[u8], last_ip: u64) -> Option<u64> {
 /// 1. for 6-branch short TNT (0b1xxxxxx0), old_bit = 6, new_bit = 1
 /// 2. for 4-branch short TNT (0b001xxxx0), old_bit = 4, new_bit = 1
 /// 3. for 47-branch long TNT, old_bit = 62, new_bit = 16
+#[derive(Debug)]
 struct TNTPacket {
     bits: [u8; 6],
     /// location of the oldest bit
@@ -77,10 +77,12 @@ struct TNTPacket {
 }
 
 /// TIP packet, marks target address
+#[derive(Debug)]
 struct TIPPacket {
     target_ip: u64,
 }
 
+#[derive(Debug)]
 enum Packet {
     TNT(TNTPacket),
     TIP(TIPPacket),
@@ -195,6 +197,10 @@ fn parse_intel_pt_packets(data: &[u8]) -> anyhow::Result<Vec<Packet>> {
 #[derive(Debug, Clone, Copy)]
 pub struct BranchInfo {
     branch_type: BranchType,
+    /// Branch address
+    inst_addr: u64,
+    /// Fallthrough address, for call stack maintenance
+    fall_addr: u64,
     /// Target address
     targ_addr: Option<u64>,
     /// The first branch that appears after the target address
@@ -274,8 +280,6 @@ fn main() -> anyhow::Result<()> {
     let call = Some("call".to_string());
     let ret = Some("ret".to_string());
     let mut branches: Vec<BranchInfo> = vec![];
-    // mapping from branch address to its index
-    let mut mapping: BTreeMap<u64, usize> = BTreeMap::new();
 
     for section in file.sections() {
         if section.kind() == SectionKind::Text {
@@ -351,9 +355,16 @@ fn main() -> anyhow::Result<()> {
                         _ => None,
                     };
 
-                    mapping.insert(insn.address(), branches.len());
+                    // ensure monotonicity
+                    let inst_addr = insn.address();
+                    assert!(
+                        inst_addr > branches.last().map(|branch| branch.inst_addr).unwrap_or(0)
+                    );
+
                     branches.push(BranchInfo {
                         branch_type,
+                        inst_addr,
+                        fall_addr: inst_addr + insn.len() as u64,
                         targ_addr,
                         targ_addr_branch_index: None,
                     });
@@ -361,5 +372,190 @@ fn main() -> anyhow::Result<()> {
             }
         }
     }
+
+    // find the first branch that appears after or equal to the target address
+    let find_branch_by_pc = |branches: &Vec<BranchInfo>, pc: u64| {
+        match branches.binary_search_by_key(&pc, |info| info.inst_addr) {
+            Ok(index) => {
+                // exact match
+                index
+            }
+            Err(index) => {
+                // the immediate next
+                index
+            }
+        }
+    };
+
+    // pre-process target branch indices
+    // so that we can locate the next branch quickly
+    let targ_addr_branch_indices: Vec<Option<usize>> = branches
+        .iter()
+        .map(|branch| {
+            if let Some(targ_addr) = branch.targ_addr {
+                return Some(find_branch_by_pc(&branches, targ_addr));
+            }
+
+            return None;
+        })
+        .collect();
+    for (branch, targ_addr_branch_index) in branches.iter_mut().zip(targ_addr_branch_indices) {
+        branch.targ_addr_branch_index = targ_addr_branch_index;
+    }
+
+    // starting from entrypoint, iterate branches
+    let entry_pc = file.entry();
+    let mut branch_index = find_branch_by_pc(&branches, entry_pc);
+    // maintain call stack of depth 64, storing return address of calls
+    let mut call_stack = VecDeque::new();
+
+    println!("Reconstructing control from from 0x{:x}", entry_pc);
+    let pbar = indicatif::ProgressBar::new(packets.len() as u64);
+    pbar.set_style(get_tqdm_style());
+    for packet in packets {
+        // println!("Handling packet {:x?}", packet);
+        match packet {
+            Packet::TNT(tnt) => {
+                for bit in (tnt.new_bit..=tnt.old_bit).rev() {
+                    let taken = ((tnt.bits[(bit / 8) as usize] >> (bit % 8)) & 1) != 0;
+
+                    // wait until we found the conditional branch
+                    loop {
+                        let branch = &branches[branch_index];
+                        // println!("PC = 0x{:x}", branch.inst_addr);
+
+                        match branch.branch_type {
+                            BranchType::ConditionalDirectJump => {
+                                if taken {
+                                    // taken path
+                                    branch_index = branch.targ_addr_branch_index.unwrap();
+                                    // println!(
+                                    //     "PC = 0x{:x} -> 0x{:x}",
+                                    //     branch.inst_addr,
+                                    //     branch.targ_addr.unwrap()
+                                    // );
+                                } else {
+                                    // not taken path
+                                    branch_index += 1;
+                                }
+                                break;
+                            }
+                            BranchType::Return => {
+                                // ret compression: if the target address of ret matches the call,
+                                // it is stored as a taken bit in TNT packet
+                                assert!(taken);
+                                let target_ip = call_stack.pop_back().unwrap();
+
+                                // println!("PC = 0x{:x} -> 0x{:x}", branch.inst_addr, target_ip);
+
+                                // go to target address
+                                branch_index = find_branch_by_pc(&branches, target_ip);
+                                break;
+                            }
+                            BranchType::DirectCall => {
+                                // add to call stack
+                                call_stack.push_back(branch.fall_addr);
+                                // handle call stack overflow
+                                while call_stack.len() > 64 {
+                                    call_stack.pop_front();
+                                }
+
+                                // go to target address
+                                branch_index = branch.targ_addr_branch_index.unwrap();
+                                // println!(
+                                //     "PC = 0x{:x} -> 0x{:x}",
+                                //     branch.inst_addr,
+                                //     branch.targ_addr.unwrap()
+                                // );
+                            }
+                            BranchType::DirectJump => {
+                                // go to target address
+                                branch_index = branch.targ_addr_branch_index.unwrap();
+                                // println!(
+                                //     "PC = 0x{:x} -> 0x{:x}",
+                                //     branch.inst_addr,
+                                //     branch.targ_addr.unwrap()
+                                // );
+                            }
+                            _ => unimplemented!(
+                                "Unhandled branch {:x?} when handling packet {:x?}",
+                                branch,
+                                tnt
+                            ),
+                        }
+                    }
+                }
+            }
+            Packet::TIP(tip) => {
+                // wait until we found the indirect branch
+                loop {
+                    let branch = &branches[branch_index];
+                    // println!("PC = 0x{:x}", branch.inst_addr);
+
+                    match branch.branch_type {
+                        BranchType::Return => {
+                            // find branch @ target address
+                            branch_index = find_branch_by_pc(&branches, tip.target_ip);
+                            call_stack.pop_front();
+                            // println!("PC = 0x{:x} -> 0x{:x}", branch.inst_addr, tip.target_ip);
+                            break;
+                        }
+                        BranchType::DirectCall => {
+                            // add to call stack
+                            call_stack.push_back(branch.fall_addr);
+                            // handle call stack overflow
+                            while call_stack.len() > 64 {
+                                call_stack.pop_front();
+                            }
+
+                            // go to target address
+                            branch_index = branch.targ_addr_branch_index.unwrap();
+                            // println!(
+                            //     "PC = 0x{:x} -> 0x{:x}",
+                            //     branch.inst_addr,
+                            //     branch.targ_addr.unwrap()
+                            // );
+                        }
+                        BranchType::IndirectCall => {
+                            // add to call stack
+                            call_stack.push_back(branch.fall_addr);
+                            // handle call stack overflow
+                            while call_stack.len() > 64 {
+                                call_stack.pop_front();
+                            }
+
+                            // find branch @ target address
+                            branch_index = find_branch_by_pc(&branches, tip.target_ip);
+
+                            // println!("PC = 0x{:x} -> 0x{:x}", branch.inst_addr, tip.target_ip);
+                            break;
+                        }
+                        BranchType::IndirectJump => {
+                            // find branch @ target address
+                            branch_index = find_branch_by_pc(&branches, tip.target_ip);
+                            // println!("PC = 0x{:x} -> 0x{:x}", branch.inst_addr, tip.target_ip);
+                            break;
+                        }
+                        BranchType::DirectJump => {
+                            // go to target address
+                            branch_index = branch.targ_addr_branch_index.unwrap();
+                            // println!(
+                            //     "PC = 0x{:x} -> 0x{:x}",
+                            //     branch.inst_addr,
+                            //     branch.targ_addr.unwrap()
+                            // );
+                        }
+                        _ => unimplemented!(
+                            "Unhandled branch {:x?} when handling packet {:x?}",
+                            branch,
+                            tip
+                        ),
+                    }
+                }
+            }
+        }
+        pbar.inc(1);
+    }
+
     Ok(())
 }

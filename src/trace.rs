@@ -1,6 +1,8 @@
 use std::io::{BufReader, Cursor, Read};
 use zstd::stream::read::Decoder;
 
+use crate::BranchType;
+
 // follow definitions in common.h
 
 #[repr(C)]
@@ -24,8 +26,6 @@ impl Entry {
         (self.0 & 0x8000) != 0
     }
 }
-
-pub type BranchType = crate::ffi::BranchType;
 
 pub struct TraceEntryIterator<'a> {
     pub compressed_entries: &'a [u8],

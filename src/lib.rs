@@ -1,11 +1,12 @@
 mod trace;
 mod utils;
 
+pub use ffi::*;
 pub use trace::*;
 pub use utils::*;
 
 #[cxx::bridge]
-pub mod ffi {
+mod ffi {
     #[repr(u32)]
     #[derive(Debug, Clone, Copy)]
     pub enum BranchType {
