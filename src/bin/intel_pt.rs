@@ -464,8 +464,8 @@ fn main() -> anyhow::Result<()> {
     // starting from entrypoint, iterate branches
     let entry_pc = file.entry();
     let mut branch_index = find_branch_by_pc(&branches, entry_pc);
-    // maintain call stack of depth 64, storing return address of calls
-    let mut call_stack = VecDeque::new();
+    // maintain call stack of depth 64, storing return address & next branch index of calls
+    let mut call_stack: VecDeque<(u64, usize)> = VecDeque::new();
 
     println!("Reconstructing control from entrypoint 0x{:x}", entry_pc);
     let output_file = File::create(&args.output_path)?;
@@ -532,18 +532,20 @@ fn main() -> anyhow::Result<()> {
                                 // ret compression: if the target address of ret matches the call,
                                 // it is stored as a taken bit in TNT packet
                                 assert!(taken);
-                                let target_ip = call_stack.pop_back().unwrap();
+                                let (target_ip, target_branch_index) =
+                                    call_stack.pop_back().unwrap();
 
                                 record_indirect(&mut output_trace, &branch, target_ip)?;
 
                                 // go to target address
-                                branch_index = find_branch_by_pc(&branches, target_ip);
+                                branch_index = target_branch_index;
 
                                 break;
                             }
                             BranchType::DirectCall => {
                                 // add to call stack
-                                call_stack.push_back(branch.fall_addr);
+                                // branch_index+1: the first branch on the fallthrough path
+                                call_stack.push_back((branch.fall_addr, branch_index + 1));
                                 // handle call stack overflow
                                 while call_stack.len() > 64 {
                                     call_stack.pop_front();
@@ -597,7 +599,8 @@ fn main() -> anyhow::Result<()> {
                             record_direct(&mut output_trace, &mut branches[branch_index], true)?;
 
                             // add to call stack
-                            call_stack.push_back(branch.fall_addr);
+                            // branch_index+1: the first branch on the fallthrough path
+                            call_stack.push_back((branch.fall_addr, branch_index + 1));
                             // handle call stack overflow
                             while call_stack.len() > 64 {
                                 call_stack.pop_front();
@@ -610,7 +613,8 @@ fn main() -> anyhow::Result<()> {
                             record_indirect(&mut output_trace, &branch, tip.target_ip)?;
 
                             // add to call stack
-                            call_stack.push_back(branch.fall_addr);
+                            // branch_index+1: the first branch on the fallthrough path
+                            call_stack.push_back((branch.fall_addr, branch_index + 1));
                             // handle call stack overflow
                             while call_stack.len() > 64 {
                                 call_stack.pop_front();
