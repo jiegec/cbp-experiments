@@ -1,5 +1,5 @@
 //! Test branch prediction accuracy
-use cbp_experiments::{TraceFile, create_insn_index_mapping, get_tqdm_style};
+use cbp_experiments::{TraceFileDecoder, create_insn_index_mapping, get_tqdm_style};
 use clap::Parser;
 use indicatif::ProgressIterator;
 use linfa::{
@@ -110,7 +110,7 @@ fn main() -> anyhow::Result<()> {
     let content = std::fs::read(&args.trace_path)?;
 
     // parse trace file
-    let file = TraceFile::open(&content);
+    let file = TraceFileDecoder::open(&content);
     println!(
         "Got {} branches and {} entries",
         file.num_brs, file.num_entries

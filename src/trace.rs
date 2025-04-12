@@ -1,5 +1,9 @@
-use std::io::{BufReader, Cursor, Read};
-use zstd::stream::read::Decoder;
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{BufReader, BufWriter, Cursor, Read, Write},
+};
+use zstd::{Encoder, stream::read::Decoder};
 
 use crate::BranchType;
 
@@ -15,6 +19,7 @@ pub struct Branch {
 }
 
 #[repr(C)]
+#[derive(Default, Clone, Copy)]
 pub struct Entry(pub u16);
 
 impl Entry {
@@ -24,6 +29,12 @@ impl Entry {
 
     pub fn get_taken(&self) -> bool {
         (self.0 & 0x8000) != 0
+    }
+
+    pub fn from(br_index: usize, taken: bool) -> Self {
+        // max brs
+        assert!(br_index < 0x8000);
+        Self(br_index as u16 | ((taken as u16) << 15))
     }
 }
 
@@ -65,7 +76,7 @@ impl<'a> Iterator for TraceEntryIterator<'a> {
 }
 
 impl<'a> TraceEntryIterator<'a> {
-    pub fn from(file: &TraceFile<'a>) -> anyhow::Result<TraceEntryIterator<'a>> {
+    pub fn from(file: &TraceFileDecoder<'a>) -> anyhow::Result<TraceEntryIterator<'a>> {
         let compressed_entries = &file.content
             [0..file.content.len() - 16 - std::mem::size_of::<Branch>() * file.num_brs];
         let cursor = Cursor::new(compressed_entries);
@@ -80,7 +91,7 @@ impl<'a> TraceEntryIterator<'a> {
     }
 }
 
-pub struct TraceFile<'a> {
+pub struct TraceFileDecoder<'a> {
     // raw trace file content
     pub content: &'a [u8],
 
@@ -90,8 +101,8 @@ pub struct TraceFile<'a> {
     pub branches: &'a [Branch],
 }
 
-impl<'a> TraceFile<'a> {
-    pub fn open(content: &'a [u8]) -> TraceFile<'a> {
+impl<'a> TraceFileDecoder<'a> {
+    pub fn open(content: &'a [u8]) -> TraceFileDecoder<'a> {
         // read num_brs
         let mut tmp_u64 = [0u8; 8];
         tmp_u64.copy_from_slice(&content[content.len() - 16..content.len() - 8]);
@@ -117,5 +128,120 @@ impl<'a> TraceFile<'a> {
 
     pub fn entries(&self) -> anyhow::Result<TraceEntryIterator<'a>> {
         TraceEntryIterator::from(self)
+    }
+}
+
+const BUFFER_SIZE: usize = 16384;
+
+pub struct TraceFileEncoder<'a> {
+    // trace file
+    pub file: &'a File,
+    pub encoder: Encoder<'a, BufWriter<&'a File>>,
+
+    // content
+    pub num_entries: usize,
+    pub branches: Vec<Branch>,
+
+    // maintain mapping from (inst_addr, targ_addr) to branch index
+    pub mapping: HashMap<(u64, u64), usize>,
+
+    // output buffer
+    pub buffer: [Entry; BUFFER_SIZE],
+    pub buffer_size: usize,
+}
+
+impl<'a> TraceFileEncoder<'a> {
+    pub fn open(file: &'a File) -> anyhow::Result<Self> {
+        Ok(Self {
+            file,
+            encoder: Encoder::new(BufWriter::new(file), 0)?,
+            num_entries: 0,
+            branches: vec![],
+            mapping: HashMap::new(),
+            buffer: [Entry::default(); BUFFER_SIZE],
+            buffer_size: 0,
+        })
+    }
+
+    pub fn record_event(
+        &mut self,
+        inst_addr: u64,
+        targ_addr: u64,
+        inst_length: u32,
+        branch_type: BranchType,
+        taken: bool,
+    ) -> anyhow::Result<()> {
+        let br_index = match self.mapping.get(&(inst_addr, targ_addr)) {
+            Some(index) => *index,
+            None => {
+                let index = self.branches.len();
+                self.branches.push(Branch {
+                    inst_addr,
+                    targ_addr,
+                    inst_length,
+                    branch_type,
+                });
+                self.mapping.insert((inst_addr, targ_addr), index);
+                index
+            }
+        };
+
+        let entry = Entry::from(br_index, taken);
+        self.buffer[self.buffer_size] = entry;
+        self.buffer_size += 1;
+
+        if self.buffer_size == BUFFER_SIZE {
+            // flush
+            self.encoder.write_all(unsafe {
+                std::slice::from_raw_parts(
+                    self.buffer.as_ptr() as *const u8,
+                    std::mem::size_of::<u16>() * self.buffer_size,
+                )
+            })?;
+            self.buffer_size = 0;
+        }
+
+        self.num_entries += 1;
+        Ok(())
+    }
+
+    pub fn finish(&mut self) -> anyhow::Result<()> {
+        if self.buffer_size > 0 {
+            // flush
+            self.encoder.write_all(unsafe {
+                std::slice::from_raw_parts(
+                    self.buffer.as_ptr() as *const u8,
+                    std::mem::size_of::<u16>() * self.buffer_size,
+                )
+            })?;
+            self.buffer_size = 0;
+        }
+
+        self.encoder.do_finish()?;
+        // write branches
+        self.file.write_all(unsafe {
+            std::slice::from_raw_parts(
+                self.branches.as_ptr() as *const u8,
+                self.branches.len() * std::mem::size_of::<Branch>(),
+            )
+        })?;
+
+        // write num_brs and num_entries
+        let val_u64 = self.branches.len() as u64;
+        self.file.write_all(unsafe {
+            std::slice::from_raw_parts(
+                &val_u64 as *const u64 as *const u8,
+                std::mem::size_of::<u64>(),
+            )
+        })?;
+
+        let val_u64 = self.num_entries as u64;
+        self.file.write_all(unsafe {
+            std::slice::from_raw_parts(
+                &val_u64 as *const u64 as *const u8,
+                std::mem::size_of::<u64>(),
+            )
+        })?;
+        Ok(())
     }
 }

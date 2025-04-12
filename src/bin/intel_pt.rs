@@ -7,7 +7,7 @@ use capstone::{
     },
     prelude::*,
 };
-use cbp_experiments::{BranchType, get_tqdm_style};
+use cbp_experiments::{BranchType, TraceFileEncoder, get_tqdm_style};
 use clap::Parser;
 use indicatif::ProgressBar;
 use memmap::{Mmap, MmapOptions};
@@ -21,11 +21,14 @@ use std::{
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {
-    /// Path to trace file
+    /// Path to input trace file (perf.data)
     trace_path: PathBuf,
 
     /// Path to executable file
     exe_path: PathBuf,
+
+    /// Path to output trace file
+    output_path: PathBuf,
 }
 
 // for IP Compression
@@ -182,11 +185,10 @@ fn parse_intel_pt_packets(data: &[u8]) -> Vec<Packet> {
                 }));
                 offset += 1;
             }
-            byte
-                if byte & 0x1f == 0x01
-                    || byte & 0x1f == 0x0d
-                    || byte & 0x1f == 0x11
-                    || byte & 0x1f == 0x1d =>
+            byte if byte & 0x1f == 0x01
+                || byte & 0x1f == 0x0d
+                || byte & 0x1f == 0x11
+                || byte & 0x1f == 0x1d =>
             {
                 // TIP.PGD(0x01)/TIP(0x0d)/TIP.PGE(0x11)/FUP(0x1d) packet
                 if let Some(ip) = compute_ip(&data[offset..], last_ip) {
@@ -214,6 +216,8 @@ pub struct BranchInfo {
     branch_type: BranchType,
     /// Branch address
     inst_addr: u64,
+    /// Instruction length
+    inst_length: u32,
     /// Fallthrough address, for call stack maintenance
     fall_addr: u64,
     /// Target address
@@ -414,6 +418,7 @@ fn main() -> anyhow::Result<()> {
                     branches.push(BranchInfo {
                         branch_type,
                         inst_addr,
+                        inst_length: insn.len() as u32,
                         fall_addr: inst_addr + insn.len() as u64,
                         targ_addr,
                         targ_addr_branch_index: None,
@@ -460,32 +465,35 @@ fn main() -> anyhow::Result<()> {
     let mut call_stack = VecDeque::new();
 
     println!("Reconstructing control from from 0x{:x}", entry_pc);
+    let output_file = File::create(&args.output_path)?;
+    let mut output_trace = TraceFileEncoder::open(&output_file)?;
     for packet in IntelPTIterator::from(args.trace_path)? {
-        // println!("Handling packet {:x?}", packet);
         match packet {
             Packet::TNT(tnt) => {
                 for bit in (tnt.new_bit..=tnt.old_bit).rev() {
                     let taken = ((tnt.bits[(bit / 8) as usize] >> (bit % 8)) & 1) != 0;
 
-                    // wait until we found the conditional branch
+                    // loop until we found the conditional branch
                     loop {
                         let branch = &branches[branch_index];
-                        // println!("PC = 0x{:x}", branch.inst_addr);
 
                         match branch.branch_type {
                             BranchType::ConditionalDirectJump => {
                                 if taken {
                                     // taken path
                                     branch_index = branch.targ_addr_branch_index.unwrap();
-                                    // println!(
-                                    //     "PC = 0x{:x} -> 0x{:x}",
-                                    //     branch.inst_addr,
-                                    //     branch.targ_addr.unwrap()
-                                    // );
                                 } else {
                                     // not taken path
                                     branch_index += 1;
                                 }
+
+                                output_trace.record_event(
+                                    branch.inst_addr,
+                                    branch.targ_addr.unwrap(),
+                                    branch.inst_length,
+                                    branch.branch_type,
+                                    taken,
+                                )?;
                                 break;
                             }
                             BranchType::Return => {
@@ -494,10 +502,16 @@ fn main() -> anyhow::Result<()> {
                                 assert!(taken);
                                 let target_ip = call_stack.pop_back().unwrap();
 
-                                // println!("PC = 0x{:x} -> 0x{:x}", branch.inst_addr, target_ip);
-
                                 // go to target address
                                 branch_index = find_branch_by_pc(&branches, target_ip);
+
+                                output_trace.record_event(
+                                    branch.inst_addr,
+                                    target_ip,
+                                    branch.inst_length,
+                                    branch.branch_type,
+                                    true,
+                                )?;
                                 break;
                             }
                             BranchType::DirectCall => {
@@ -510,20 +524,25 @@ fn main() -> anyhow::Result<()> {
 
                                 // go to target address
                                 branch_index = branch.targ_addr_branch_index.unwrap();
-                                // println!(
-                                //     "PC = 0x{:x} -> 0x{:x}",
-                                //     branch.inst_addr,
-                                //     branch.targ_addr.unwrap()
-                                // );
+                                output_trace.record_event(
+                                    branch.inst_addr,
+                                    branch.targ_addr.unwrap(),
+                                    branch.inst_length,
+                                    branch.branch_type,
+                                    true,
+                                )?;
                             }
                             BranchType::DirectJump => {
                                 // go to target address
                                 branch_index = branch.targ_addr_branch_index.unwrap();
-                                // println!(
-                                //     "PC = 0x{:x} -> 0x{:x}",
-                                //     branch.inst_addr,
-                                //     branch.targ_addr.unwrap()
-                                // );
+
+                                output_trace.record_event(
+                                    branch.inst_addr,
+                                    branch.targ_addr.unwrap(),
+                                    branch.inst_length,
+                                    branch.branch_type,
+                                    true,
+                                )?;
                             }
                             _ => unimplemented!(
                                 "Unhandled branch {:x?} when handling packet {:x?}",
@@ -538,14 +557,20 @@ fn main() -> anyhow::Result<()> {
                 // wait until we found the indirect branch
                 loop {
                     let branch = &branches[branch_index];
-                    // println!("PC = 0x{:x}", branch.inst_addr);
 
                     match branch.branch_type {
                         BranchType::Return => {
                             // find branch @ target address
                             branch_index = find_branch_by_pc(&branches, tip.target_ip);
                             call_stack.pop_front();
-                            // println!("PC = 0x{:x} -> 0x{:x}", branch.inst_addr, tip.target_ip);
+
+                            output_trace.record_event(
+                                branch.inst_addr,
+                                tip.target_ip,
+                                branch.inst_length,
+                                branch.branch_type,
+                                true,
+                            )?;
                             break;
                         }
                         BranchType::DirectCall => {
@@ -558,11 +583,14 @@ fn main() -> anyhow::Result<()> {
 
                             // go to target address
                             branch_index = branch.targ_addr_branch_index.unwrap();
-                            // println!(
-                            //     "PC = 0x{:x} -> 0x{:x}",
-                            //     branch.inst_addr,
-                            //     branch.targ_addr.unwrap()
-                            // );
+
+                            output_trace.record_event(
+                                branch.inst_addr,
+                                branch.targ_addr.unwrap(),
+                                branch.inst_length,
+                                branch.branch_type,
+                                true,
+                            )?;
                         }
                         BranchType::IndirectCall => {
                             // add to call stack
@@ -575,23 +603,39 @@ fn main() -> anyhow::Result<()> {
                             // find branch @ target address
                             branch_index = find_branch_by_pc(&branches, tip.target_ip);
 
-                            // println!("PC = 0x{:x} -> 0x{:x}", branch.inst_addr, tip.target_ip);
+                            output_trace.record_event(
+                                branch.inst_addr,
+                                tip.target_ip,
+                                branch.inst_length,
+                                branch.branch_type,
+                                true,
+                            )?;
                             break;
                         }
                         BranchType::IndirectJump => {
                             // find branch @ target address
                             branch_index = find_branch_by_pc(&branches, tip.target_ip);
-                            // println!("PC = 0x{:x} -> 0x{:x}", branch.inst_addr, tip.target_ip);
+
+                            output_trace.record_event(
+                                branch.inst_addr,
+                                tip.target_ip,
+                                branch.inst_length,
+                                branch.branch_type,
+                                true,
+                            )?;
                             break;
                         }
                         BranchType::DirectJump => {
                             // go to target address
                             branch_index = branch.targ_addr_branch_index.unwrap();
-                            // println!(
-                            //     "PC = 0x{:x} -> 0x{:x}",
-                            //     branch.inst_addr,
-                            //     branch.targ_addr.unwrap()
-                            // );
+
+                            output_trace.record_event(
+                                branch.inst_addr,
+                                branch.targ_addr.unwrap(),
+                                branch.inst_length,
+                                branch.branch_type,
+                                true,
+                            )?;
                         }
                         _ => unimplemented!(
                             "Unhandled branch {:x?} when handling packet {:x?}",

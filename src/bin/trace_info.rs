@@ -1,5 +1,7 @@
 /// Display info and statistics of trace file
-use cbp_experiments::{Branch, BranchType, TraceFile, create_insn_index_mapping, get_tqdm_style};
+use cbp_experiments::{
+    Branch, BranchType, TraceFileDecoder, create_insn_index_mapping, get_tqdm_style,
+};
 use clap::Parser;
 use cli_table::{Cell, Table, print_stdout};
 use std::collections::HashMap;
@@ -27,7 +29,7 @@ fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
     let content = std::fs::read(args.trace_path)?;
     // parse trace file
-    let file = TraceFile::open(&content);
+    let file = TraceFileDecoder::open(&content);
     println!(
         "Got {} branches and {} entries",
         file.num_brs, file.num_entries
