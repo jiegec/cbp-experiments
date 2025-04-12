@@ -187,22 +187,8 @@ impl<'a> TraceFileEncoder<'a> {
             }
         };
 
-        let entry = Entry::from(br_index, taken);
-        self.buffer[self.buffer_size] = entry;
-        self.buffer_size += 1;
+        self.record_event_with_branch_index(br_index, taken)?;
 
-        if self.buffer_size == BUFFER_SIZE {
-            // flush
-            self.encoder.write_all(unsafe {
-                std::slice::from_raw_parts(
-                    self.buffer.as_ptr() as *const u8,
-                    std::mem::size_of::<u16>() * self.buffer_size,
-                )
-            })?;
-            self.buffer_size = 0;
-        }
-
-        self.num_entries += 1;
         Ok(br_index)
     }
 

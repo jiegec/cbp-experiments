@@ -467,7 +467,7 @@ fn main() -> anyhow::Result<()> {
     // maintain call stack of depth 64, storing return address of calls
     let mut call_stack = VecDeque::new();
 
-    println!("Reconstructing control from from 0x{:x}", entry_pc);
+    println!("Reconstructing control from entrypoint 0x{:x}", entry_pc);
     let output_file = File::create(&args.output_path)?;
     let mut output_trace = TraceFileEncoder::open(&output_file)?;
 
