@@ -213,19 +213,23 @@ fn parse_intel_pt_packets(data: &[u8]) -> Vec<Packet> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct BranchInfo {
-    branch_type: BranchType,
     /// Branch address
     inst_addr: u64,
+    /// Branch type
+    branch_type: BranchType,
     /// Instruction length
     inst_length: u32,
-    /// Fallthrough address, for call stack maintenance
-    fall_addr: u64,
     /// Target address
     targ_addr: Option<u64>,
     /// The first branch that appears after the target address
     targ_addr_branch_index: Option<usize>,
-    /// Branch index in output file
-    output_branch_index: Option<usize>,
+}
+
+impl BranchInfo {
+    /// Fallthrough address, for call stack maintenance
+    pub fn fall_addr(&self) -> u64 {
+        self.inst_addr + self.inst_length as u64
+    }
 }
 
 pub struct IntelPTIterator {
@@ -421,10 +425,8 @@ fn main() -> anyhow::Result<()> {
                         branch_type,
                         inst_addr,
                         inst_length: insn.len() as u32,
-                        fall_addr: inst_addr + insn.len() as u64,
                         targ_addr,
                         targ_addr_branch_index: None,
-                        output_branch_index: None,
                     });
                 }
             }
@@ -471,11 +473,15 @@ fn main() -> anyhow::Result<()> {
     let output_file = File::create(&args.output_path)?;
     let mut output_trace = TraceFileEncoder::open(&output_file)?;
 
+    // Maintain branch index in output file as optimization
+    let mut output_branch_indices: Vec<Option<usize>> = vec![None; branches.len()];
+
     // record direct branch, eligible for caching branch index in output trace
     let record_direct = |output_trace: &mut TraceFileEncoder,
-                         branch: &mut BranchInfo,
-                         taken: bool| match branch.output_branch_index {
-        Some(branch_index) => output_trace.record_event_with_branch_index(branch_index, taken),
+                         branch: &BranchInfo,
+                         output_branch_index: &mut Option<usize>,
+                         taken: bool| match output_branch_index {
+        Some(branch_index) => output_trace.record_event_with_branch_index(*branch_index, taken),
         None => {
             let new_branch_index = output_trace.record_event(
                 branch.inst_addr,
@@ -484,7 +490,7 @@ fn main() -> anyhow::Result<()> {
                 branch.branch_type,
                 taken,
             )?;
-            branch.output_branch_index = Some(new_branch_index);
+            *output_branch_index = Some(new_branch_index);
             Ok(())
         }
     };
@@ -509,13 +515,14 @@ fn main() -> anyhow::Result<()> {
 
                     // loop until we found the conditional branch
                     loop {
-                        let branch = branches[branch_index];
+                        let branch = &branches[branch_index];
 
                         match branch.branch_type {
                             BranchType::ConditionalDirectJump => {
                                 record_direct(
                                     &mut output_trace,
-                                    &mut branches[branch_index],
+                                    branch,
+                                    &mut output_branch_indices[branch_index],
                                     taken,
                                 )?;
 
@@ -545,7 +552,7 @@ fn main() -> anyhow::Result<()> {
                             BranchType::DirectCall => {
                                 // add to call stack
                                 // branch_index+1: the first branch on the fallthrough path
-                                call_stack.push_back((branch.fall_addr, branch_index + 1));
+                                call_stack.push_back((branch.fall_addr(), branch_index + 1));
                                 // handle call stack overflow
                                 while call_stack.len() > 64 {
                                     call_stack.pop_front();
@@ -553,7 +560,8 @@ fn main() -> anyhow::Result<()> {
 
                                 record_direct(
                                     &mut output_trace,
-                                    &mut branches[branch_index],
+                                    branch,
+                                    &mut output_branch_indices[branch_index],
                                     true,
                                 )?;
 
@@ -563,7 +571,8 @@ fn main() -> anyhow::Result<()> {
                             BranchType::DirectJump => {
                                 record_direct(
                                     &mut output_trace,
-                                    &mut branches[branch_index],
+                                    branch,
+                                    &mut output_branch_indices[branch_index],
                                     true,
                                 )?;
 
@@ -582,7 +591,7 @@ fn main() -> anyhow::Result<()> {
             Packet::TIP(tip) => {
                 // wait until we found the indirect branch
                 loop {
-                    let branch = branches[branch_index];
+                    let branch = &branches[branch_index];
 
                     match branch.branch_type {
                         BranchType::Return => {
@@ -596,11 +605,16 @@ fn main() -> anyhow::Result<()> {
                             break;
                         }
                         BranchType::DirectCall => {
-                            record_direct(&mut output_trace, &mut branches[branch_index], true)?;
+                            record_direct(
+                                &mut output_trace,
+                                branch,
+                                &mut output_branch_indices[branch_index],
+                                true,
+                            )?;
 
                             // add to call stack
                             // branch_index+1: the first branch on the fallthrough path
-                            call_stack.push_back((branch.fall_addr, branch_index + 1));
+                            call_stack.push_back((branch.fall_addr(), branch_index + 1));
                             // handle call stack overflow
                             while call_stack.len() > 64 {
                                 call_stack.pop_front();
@@ -610,11 +624,11 @@ fn main() -> anyhow::Result<()> {
                             branch_index = branch.targ_addr_branch_index.unwrap();
                         }
                         BranchType::IndirectCall => {
-                            record_indirect(&mut output_trace, &branch, tip.target_ip)?;
+                            record_indirect(&mut output_trace, branch, tip.target_ip)?;
 
                             // add to call stack
                             // branch_index+1: the first branch on the fallthrough path
-                            call_stack.push_back((branch.fall_addr, branch_index + 1));
+                            call_stack.push_back((branch.fall_addr(), branch_index + 1));
                             // handle call stack overflow
                             while call_stack.len() > 64 {
                                 call_stack.pop_front();
@@ -625,14 +639,19 @@ fn main() -> anyhow::Result<()> {
                             break;
                         }
                         BranchType::IndirectJump => {
-                            record_indirect(&mut output_trace, &branch, tip.target_ip)?;
+                            record_indirect(&mut output_trace, branch, tip.target_ip)?;
 
                             // find branch @ target address
                             branch_index = find_branch_by_pc(&branches, tip.target_ip);
                             break;
                         }
                         BranchType::DirectJump => {
-                            record_direct(&mut output_trace, &mut branches[branch_index], true)?;
+                            record_direct(
+                                &mut output_trace,
+                                branch,
+                                &mut output_branch_indices[branch_index],
+                                true,
+                            )?;
 
                             // go to target address
                             branch_index = branch.targ_addr_branch_index.unwrap();
