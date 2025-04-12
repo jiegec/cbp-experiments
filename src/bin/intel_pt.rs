@@ -542,7 +542,7 @@ fn main() -> anyhow::Result<()> {
                                 let (target_ip, target_branch_index) =
                                     call_stack.pop_back().unwrap();
 
-                                record_indirect(&mut output_trace, &branch, target_ip)?;
+                                record_indirect(&mut output_trace, branch, target_ip)?;
 
                                 // go to target address
                                 branch_index = target_branch_index;
@@ -595,7 +595,7 @@ fn main() -> anyhow::Result<()> {
 
                     match branch.branch_type {
                         BranchType::Return => {
-                            record_indirect(&mut output_trace, &branch, tip.target_ip)?;
+                            record_indirect(&mut output_trace, branch, tip.target_ip)?;
 
                             // find branch @ target address
                             branch_index = find_branch_by_pc(&branches, tip.target_ip);
