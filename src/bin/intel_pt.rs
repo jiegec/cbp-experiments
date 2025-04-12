@@ -9,9 +9,14 @@ use capstone::{
 };
 use cbp_experiments::{BranchType, get_tqdm_style};
 use clap::Parser;
-use memmap::MmapOptions;
+use indicatif::ProgressBar;
+use memmap::{Mmap, MmapOptions};
 use object::{Object, ObjectSection, SectionKind};
-use std::{collections::VecDeque, fs::File, path::PathBuf};
+use std::{
+    collections::VecDeque,
+    fs::File,
+    path::{Path, PathBuf},
+};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -68,7 +73,7 @@ fn compute_ip(data: &[u8], last_ip: u64) -> Option<u64> {
 /// 2. for 4-branch short TNT (0b001xxxx0), old_bit = 4, new_bit = 1
 /// 3. for 47-branch long TNT, old_bit = 46, new_bit = 0
 #[derive(Clone, Copy, Debug)]
-struct TNTPacket {
+pub struct TNTPacket {
     bits: [u8; 6],
     /// location of the oldest bit
     old_bit: u8,
@@ -78,17 +83,17 @@ struct TNTPacket {
 
 /// TIP packet, marks target address
 #[derive(Clone, Copy, Debug)]
-struct TIPPacket {
+pub struct TIPPacket {
     target_ip: u64,
 }
 
 #[derive(Clone, Copy, Debug)]
-enum Packet {
+pub enum Packet {
     TNT(TNTPacket),
     TIP(TIPPacket),
 }
 
-fn parse_intel_pt_packets(data: &[u8]) -> anyhow::Result<Vec<Packet>> {
+fn parse_intel_pt_packets(data: &[u8]) -> Vec<Packet> {
     let mut offset = 0;
     let mut last_ip = 0;
     let mut result = vec![];
@@ -191,7 +196,7 @@ fn parse_intel_pt_packets(data: &[u8]) -> anyhow::Result<Vec<Packet>> {
             ),
         }
     }
-    Ok(result)
+    result
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -207,62 +212,99 @@ pub struct BranchInfo {
     targ_addr_branch_index: Option<usize>,
 }
 
+pub struct IntelPTIterator {
+    file: File,
+    content: Mmap,
+    pbar: ProgressBar,
+    offset: usize,
+    data_begin: usize,
+    data_end: usize,
+    packets: VecDeque<Packet>,
+}
+
+impl Iterator for IntelPTIterator {
+    type Item = Packet;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // scan for more packets
+        while self.packets.is_empty() && self.offset < self.data_end {
+            let mut tmp_u64 = [0u8; 8];
+            let mut tmp_u32 = [0u8; 4];
+            let mut tmp_u16 = [0u8; 2];
+            tmp_u32.copy_from_slice(&self.content[self.offset..self.offset + 4]);
+            let event_type = u32::from_le_bytes(tmp_u32);
+            tmp_u16.copy_from_slice(&self.content[self.offset + 6..self.offset + 8]);
+            let event_size = u16::from_le_bytes(tmp_u16);
+            assert!(event_size > 0);
+            // println!(
+            //     "Got event at 0x{:x}: type {}, size {}",
+            //     offset, event_type, event_size
+            // );
+
+            if event_type == 71 {
+                // PERF_RECORD_AUXTRACE
+                tmp_u64.copy_from_slice(&self.content[self.offset + 8..self.offset + 16]);
+                let data_size = u64::from_le_bytes(tmp_u64) as usize;
+                let data = &self.content[self.offset + event_size as usize
+                    ..self.offset + event_size as usize + data_size];
+                // println!(
+                //     "Found Intel PT data at 0x{:x} with size {}",
+                //     offset + event_size as usize,
+                //     data_size
+                // );
+                self.packets.extend(parse_intel_pt_packets(data));
+                self.offset += data_size;
+            }
+            self.offset += event_size as usize;
+
+            self.pbar
+                .set_position((self.offset - self.data_begin) as u64);
+        }
+
+        if let Some(packet) = self.packets.pop_front() {
+            return Some(packet);
+        }
+        return None;
+    }
+}
+
+impl IntelPTIterator {
+    pub fn from<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
+        let file = File::open(path)?;
+        let content = unsafe { MmapOptions::new().map(&file)? };
+
+        // parse perf.data
+        println!("Parsing perf.data format");
+        let magic = std::str::from_utf8(&content[..8])?;
+        assert_eq!(magic, "PERFILE2");
+        let mut tmp_u64 = [0u8; 8];
+        // find data section offset
+        tmp_u64.copy_from_slice(&content[40..48]);
+        let data_section_offset = u64::from_le_bytes(tmp_u64) as usize;
+        tmp_u64.copy_from_slice(&content[48..56]);
+        let data_section_size = u64::from_le_bytes(tmp_u64) as usize;
+        println!(
+            "Found data section at 0x{:x}, size {}",
+            data_section_offset, data_section_size
+        );
+
+        let pbar = indicatif::ProgressBar::new(data_section_size as u64);
+        pbar.set_style(get_tqdm_style());
+
+        Ok(Self {
+            file,
+            content,
+            pbar,
+            offset: data_section_offset,
+            data_begin: data_section_offset,
+            data_end: data_section_offset + data_section_size,
+            packets: VecDeque::new(),
+        })
+    }
+}
+
 fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
-    let file = File::open(&args.trace_path)?;
-    let content = unsafe { MmapOptions::new().map(&file)? };
-
-    // parse perf.data
-    println!("Parsing perf.data format");
-    let magic = std::str::from_utf8(&content[..8])?;
-    assert_eq!(magic, "PERFILE2");
-    let mut tmp_u64 = [0u8; 8];
-    let mut tmp_u32 = [0u8; 4];
-    let mut tmp_u16 = [0u8; 2];
-    // find data section offset
-    tmp_u64.copy_from_slice(&content[40..48]);
-    let data_section_offset = u64::from_le_bytes(tmp_u64) as usize;
-    tmp_u64.copy_from_slice(&content[48..56]);
-    let data_section_size = u64::from_le_bytes(tmp_u64) as usize;
-    println!(
-        "Found data section at 0x{:x}, size {}",
-        data_section_offset, data_section_size
-    );
-
-    let pbar = indicatif::ProgressBar::new(data_section_size as u64);
-    pbar.set_style(get_tqdm_style());
-    let mut offset = data_section_offset;
-    let mut packets = vec![];
-    while offset < data_section_offset + data_section_size {
-        tmp_u32.copy_from_slice(&content[offset..offset + 4]);
-        let event_type = u32::from_le_bytes(tmp_u32);
-        tmp_u16.copy_from_slice(&content[offset + 6..offset + 8]);
-        let event_size = u16::from_le_bytes(tmp_u16);
-        assert!(event_size > 0);
-        // println!(
-        //     "Got event at 0x{:x}: type {}, size {}",
-        //     offset, event_type, event_size
-        // );
-
-        if event_type == 71 {
-            // PERF_RECORD_AUXTRACE
-            tmp_u64.copy_from_slice(&content[offset + 8..offset + 16]);
-            let data_size = u64::from_le_bytes(tmp_u64) as usize;
-            let data =
-                &content[offset + event_size as usize..offset + event_size as usize + data_size];
-            // println!(
-            //     "Found Intel PT data at 0x{:x} with size {}",
-            //     offset + event_size as usize,
-            //     data_size
-            // );
-            packets.extend(parse_intel_pt_packets(data)?);
-            offset += data_size;
-        }
-        offset += event_size as usize;
-
-        pbar.set_position((offset - data_section_offset) as u64);
-    }
-    println!("Got {} packets", packets.len());
 
     // parse elf, find all branches and put them in an array
 
@@ -410,9 +452,7 @@ fn main() -> anyhow::Result<()> {
     let mut call_stack = VecDeque::new();
 
     println!("Reconstructing control from from 0x{:x}", entry_pc);
-    let pbar = indicatif::ProgressBar::new(packets.len() as u64);
-    pbar.set_style(get_tqdm_style());
-    for packet in packets {
+    for packet in IntelPTIterator::from(args.trace_path)? {
         // println!("Handling packet {:x?}", packet);
         match packet {
             Packet::TNT(tnt) => {
@@ -554,7 +594,6 @@ fn main() -> anyhow::Result<()> {
                 }
             }
         }
-        pbar.inc(1);
     }
 
     Ok(())
