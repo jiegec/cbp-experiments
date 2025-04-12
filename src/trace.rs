@@ -217,7 +217,7 @@ impl<'a> TraceFileEncoder<'a> {
         Ok(())
     }
 
-    pub fn finish(&mut self) -> anyhow::Result<()> {
+    pub fn finish(mut self) -> anyhow::Result<()> {
         if self.buffer_size > 0 {
             // flush
             self.encoder.write_all(unsafe {
@@ -229,9 +229,9 @@ impl<'a> TraceFileEncoder<'a> {
             self.buffer_size = 0;
         }
 
-        self.encoder.do_finish()?;
+        let mut writer = self.encoder.finish()?;
         // write branches
-        self.file.write_all(unsafe {
+        writer.write_all(unsafe {
             std::slice::from_raw_parts(
                 self.branches.as_ptr() as *const u8,
                 self.branches.len() * std::mem::size_of::<Branch>(),
@@ -240,7 +240,7 @@ impl<'a> TraceFileEncoder<'a> {
 
         // write num_brs and num_entries
         let val_u64 = self.branches.len() as u64;
-        self.file.write_all(unsafe {
+        writer.write_all(unsafe {
             std::slice::from_raw_parts(
                 &val_u64 as *const u64 as *const u8,
                 std::mem::size_of::<u64>(),
@@ -248,12 +248,13 @@ impl<'a> TraceFileEncoder<'a> {
         })?;
 
         let val_u64 = self.num_entries as u64;
-        self.file.write_all(unsafe {
+        writer.write_all(unsafe {
             std::slice::from_raw_parts(
                 &val_u64 as *const u64 as *const u8,
                 std::mem::size_of::<u64>(),
             )
         })?;
+        writer.flush()?;
         Ok(())
     }
 }

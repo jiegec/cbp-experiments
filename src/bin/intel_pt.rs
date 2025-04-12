@@ -644,5 +644,12 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
+    println!(
+        "Got {} branches and {} entries in output trace",
+        output_trace.branches.len(),
+        output_trace.num_entries
+    );
+    output_trace.finish()?;
+
     Ok(())
 }
