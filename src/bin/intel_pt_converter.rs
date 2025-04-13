@@ -22,12 +22,15 @@ use std::{
 #[command(version, about, long_about = None)]
 struct Cli {
     /// Path to input trace file (perf.data)
+    #[arg(short, long)]
     trace_path: PathBuf,
 
     /// Path to executable file
+    #[arg(short, long)]
     exe_path: PathBuf,
 
     /// Path to output trace file
+    #[arg(short, long)]
     output_path: PathBuf,
 }
 

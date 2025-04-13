@@ -36,9 +36,11 @@ enum Commands {
     /// Record trace using tracers
     Record {
         /// Benchmark config name
+        #[arg(short, long)]
         config_name: PathBuf,
 
         /// Which tracer to use
+        #[arg(short, long)]
         tracer: Tracer,
     },
     /// Display trace info
@@ -48,7 +50,23 @@ enum Commands {
         tracer: Option<Tracer>,
 
         /// Benchmark config name
+        #[arg(short, long)]
         config_name: PathBuf,
+    },
+    /// Run SimPoint methodology
+    #[clap(name = "simpoint")]
+    SimPoint {
+        /// Which tracer to use, default to use the final one
+        #[arg(short, long)]
+        tracer: Option<Tracer>,
+
+        /// Benchmark config name
+        #[arg(short, long)]
+        config_name: PathBuf,
+
+        /// SimPoint slice size in instructions
+        #[arg(short, long)]
+        size: u64,
     },
 }
 
@@ -155,7 +173,7 @@ fn main() -> anyhow::Result<()> {
 
                             // conversion
                             let args = format!(
-                                "time target/release/intel_pt_converter {} {} {}",
+                                "time target/release/intel_pt_converter --trace-path {} --exe-path {} --output-path {}",
                                 perf_data_file.display(),
                                 benchmark.executable,
                                 trace_file.display(),
@@ -220,9 +238,63 @@ fn main() -> anyhow::Result<()> {
                     println!("Displaying info for {}", trace_file.display());
 
                     let args = format!(
-                        "target/release/trace_info {} {}",
+                        "target/release/trace_info --trace-path {} --exe-path {}",
                         trace_file.display(),
                         benchmark.executable,
+                    );
+                    println!("Running {}", args);
+                    let result = std::process::Command::new("sh")
+                        .arg("-c")
+                        .arg(args)
+                        .status()?;
+                    assert!(result.success());
+                }
+            }
+        }
+        Commands::SimPoint {
+            tracer,
+            config_name,
+            size,
+        } => {
+            let tracer_name = match tracer {
+                Some(tracer) => {
+                    let tracer_possible_value = tracer.to_possible_value().unwrap();
+                    let tracer_name = tracer_possible_value.get_name();
+                    tracer_name.to_string()
+                }
+                None => "final".to_string(),
+            };
+            let config: Config = serde_json::from_slice(&std::fs::read(
+                PathBuf::from("benchmarks")
+                    .join(config_name)
+                    .join("config.json"),
+            )?)?;
+
+            for benchmark in &config.benchmarks {
+                for (command_index, _command) in benchmark.commands.iter().enumerate() {
+                    // trace file at "benchmarks/{folder}/traces/{tracer}/{benchmark.name}-{command_index}.log"
+                    let dir = PathBuf::from("benchmarks")
+                        .join(config_name)
+                        .join("traces")
+                        .join(&tracer_name);
+                    std::fs::create_dir_all(&dir)?;
+
+                    let trace_file = dir.join(format!("{}-{}.log", benchmark.name, command_index));
+                    println!("Running SimPoint on {}", trace_file.display());
+
+                    // output prefix: "benchmarks/{folder}/simpoint/{benchmark.name}-{command_index}"
+                    let dir = PathBuf::from("benchmarks")
+                        .join(config_name)
+                        .join("simpoint");
+                    std::fs::create_dir_all(&dir)?;
+                    let output_prefix = dir.join(format!("{}-{}", benchmark.name, command_index));
+
+                    let args = format!(
+                        "target/release/simpoint --trace-path {} --exe-path {} --size {} --output-prefix {}",
+                        trace_file.display(),
+                        benchmark.executable,
+                        size,
+                        output_prefix.display()
                     );
                     println!("Running {}", args);
                     let result = std::process::Command::new("sh")

@@ -16,16 +16,23 @@ use std::path::PathBuf;
 #[command(version, about, long_about = None)]
 struct Cli {
     /// Path to trace file
+    #[arg(short, long)]
     trace_path: PathBuf,
 
     /// Path to executable file
+    #[arg(short, long)]
     exe_path: PathBuf,
 
     /// SimPoint slice size in instructions
+    #[arg(short, long)]
     size: u64,
 
-    /// Path to output json
-    output_path: PathBuf,
+    /// Output prefix, e.g.,
+    /// json goes to: {output_prefix}.json,
+    /// simpoint slices goes to: {output_prefix}-simpoint-{index}.log,
+    /// plot goes to: {output_prefix}-simpoint-{index}.log
+    #[arg(short, long)]
+    output_prefix: String,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -308,10 +315,12 @@ fn main() -> anyhow::Result<()> {
         phases,
     };
 
-    std::fs::write(&args.output_path, serde_json::to_vec_pretty(&result)?)?;
-    println!("Result written to {}", args.output_path.display());
+    let json_path = format!("{}.json", args.output_prefix);
+    std::fs::write(&json_path, serde_json::to_vec_pretty(&result)?)?;
+    println!("Result written to {}", json_path);
 
     // plot
+    let plot_path = format!("{}.png", args.output_prefix);
     Mpl::new()
         & CustomPrelude
         & c::DefInit
@@ -322,8 +331,8 @@ fn main() -> anyhow::Result<()> {
         .o("marker", "s")
         .o("linestyle", "")
         & c::yticks((0..num_clusters).map(|num| num as f64))
-        | Run::Save(PathBuf::from("simpoint.png"));
-    println!("Visualization generated to simpoint.png");
+        | Run::Save(PathBuf::from(&plot_path));
+    println!("Visualization generated to {}", plot_path);
 
     Ok(())
 }

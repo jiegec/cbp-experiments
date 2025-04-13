@@ -11,9 +11,11 @@ use std::path::PathBuf;
 #[command(version, about, long_about = None)]
 struct Cli {
     /// Path to trace file
+    #[arg(short, long)]
     trace_path: PathBuf,
 
     /// Path to executable file
+    #[arg(short, long)]
     exe_path: Option<PathBuf>,
 }
 

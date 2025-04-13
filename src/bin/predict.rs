@@ -11,24 +11,27 @@ use std::path::PathBuf;
 #[command(version, about, long_about = None)]
 struct Cli {
     /// Path to trace file
+    #[arg(short, long)]
     trace_path: PathBuf,
 
     /// Predictor name
+    #[arg(short, long)]
     predictor: String,
 
     /// Path to executable file
+    #[arg(short, long)]
     exe_path: PathBuf,
 
     /// Skip count in instructions
-    #[arg(default_value = "0")]
+    #[arg(short, long, default_value = "0")]
     skip: usize,
 
     /// Warmup count in instructions
-    #[arg(default_value = "0")]
+    #[arg(short, long, default_value = "0")]
     warmup: usize,
 
     /// Simulation count in instructions
-    #[arg(default_value = "0")]
+    #[arg(short, long, default_value = "0")]
     simulate: usize,
 }
 
