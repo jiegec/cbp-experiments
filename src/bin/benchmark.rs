@@ -35,15 +35,15 @@ enum Tracer {
 enum Commands {
     /// Record trace using tracers
     Record {
-        /// Which tracer to use
-        tracer: Tracer,
-
         /// Benchmark config name
         config_name: PathBuf,
+
+        /// Which tracer to use
+        tracer: Tracer,
     },
     /// Display trace info
     Info {
-        /// Which tracer to use
+        /// Which tracer to use, default to use the final one
         #[arg(short, long)]
         tracer: Option<Tracer>,
 

@@ -2,9 +2,9 @@
 
 enum branch_type {
   op_direct_jump,             // jmp imm
-  op_indirect_jump,           // jmp reg
+  op_indirect_jump,           // jmp reg/jmp mem
   op_direct_call,             // call imm
-  op_indirect_call,           // call reg
+  op_indirect_call,           // call reg/call mem
   op_return,                  // ret
   op_conditional_direct_jump, // jnz imm
   op_invalid

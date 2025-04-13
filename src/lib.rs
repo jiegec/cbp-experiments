@@ -10,11 +10,17 @@ mod ffi {
     #[repr(u32)]
     #[derive(Debug, Clone, Copy)]
     pub enum BranchType {
+        /// jmp imm
         DirectJump,
+        /// jmp reg/jmp mem
         IndirectJump,
+        /// call imm
         DirectCall,
+        /// call reg/call mem
         IndirectCall,
+        /// ret
         Return,
+        /// jnz imm
         ConditionalDirectJump,
         Invalid,
     }
