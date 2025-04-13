@@ -15,6 +15,7 @@ Run experiments:
 3. Display trace statistics: `cargo run --release --bin benchmark -- info --config-name [config]`
 3. Run SimPoint clustering: `cargo run --release --bin benchmark -- simpoint --config-name [config] --size [instructions]`
 4. Run branch prediction: `cargo run --release --bin benchmark -- simulate --config-name [config] --predictor [predictor]`
+5. Find results under: `benchmarks/[config]/[simulate]/[datetime]-[predictor]/per-benchmark`
 
 Configuration hierarchy:
 

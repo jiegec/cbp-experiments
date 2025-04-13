@@ -8,9 +8,12 @@
 //       \- {benchmark-name}-{command-index}.json
 //    |- simulate/
 //       \- {datetime}-{predictor}/
-//          |- {benchmark-name}.log
-//          |- {benchmark-name}-{command-index}.log
-//          \- {benchmark-name}-{command-index}-simpoint-{command-index}.log
+//          |- per-benchmark/
+//             \- {benchmark-name}.log
+//          |- per-command/
+//             \- {benchmark-name}-{command-index}.log
+//          \- per-simpoint/
+//             \- {benchmark-name}-{command-index}-simpoint-{command-index}.log
 //    \- traces/
 //       \- {tracer-name}/
 //          \- {benchmark-name}-{command-index}.log

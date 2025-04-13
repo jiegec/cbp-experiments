@@ -310,6 +310,15 @@ fn main() -> anyhow::Result<()> {
             );
             create_dir_all(&simulate_dir)?;
 
+            let per_simpoint_dir = simulate_dir.join("per-simpoint");
+            create_dir_all(&per_simpoint_dir)?;
+
+            let per_command_dir = simulate_dir.join("per-command");
+            create_dir_all(&per_command_dir)?;
+
+            let per_benchmark_dir = simulate_dir.join("per-benchmark");
+            create_dir_all(&per_benchmark_dir)?;
+
             for benchmark in &config.benchmarks {
                 for (command_index, _command) in benchmark.commands.iter().enumerate() {
                     // simpoint result at "{simpoint_dir}/{benchmark.name}-{command_index}.json"
@@ -335,8 +344,8 @@ fn main() -> anyhow::Result<()> {
                             benchmark.name, command_index, simpoint_index
                         ));
 
-                        // simulation result at "{simulate_dir}/{benchmark.name}-{command_index}-simpoint-{simpoint_index}.log"
-                        let output_file = simulate_dir.join(format!(
+                        // simulation result at "{simulate_dir}/per-simpoint/{benchmark.name}-{command_index}-simpoint-{simpoint_index}.log"
+                        let output_file = per_simpoint_dir.join(format!(
                             "{}-{}-simpoint-{}.log",
                             benchmark.name, command_index, simpoint_index
                         ));
@@ -359,16 +368,16 @@ fn main() -> anyhow::Result<()> {
                     }
 
                     // combine results of simulations
-                    // combined result at "{simulate_dir}/{benchmark.name}-{command_index}.log"
+                    // combined result at "{simulate_dir}/per-command/{benchmark.name}-{command_index}.log"
                     let output_file =
-                        simulate_dir.join(format!("{}-{}.log", benchmark.name, command_index));
+                        per_command_dir.join(format!("{}-{}.log", benchmark.name, command_index));
                     let args = format!(
                         "target/release/combine --output-path {} simpoint --simpoint-path {} --result-path {}",
                         output_file.display(),
                         get_simpoint_dir(config_name)
                             .join(format!("{}-{}.json", benchmark.name, command_index))
                             .display(),
-                        simulate_dir.display(),
+                        per_simpoint_dir.display(),
                     );
                     println!("Running {}", args);
                     let result = std::process::Command::new("sh")
@@ -379,15 +388,15 @@ fn main() -> anyhow::Result<()> {
                 }
 
                 // combine results of different commands
-                // combined result at "{simulate_dir}/{benchmark.name}.log"
-                let output_file = simulate_dir.join(format!("{}.log", benchmark.name));
+                // combined result at "{simulate_dir}/per-benchmark/{benchmark.name}.log"
+                let output_file = per_benchmark_dir.join(format!("{}.log", benchmark.name));
                 let mut paths = vec![];
                 for (command_index, _command) in benchmark.commands.iter().enumerate() {
-                    // combined simpoint result at "{simulate_dir}/{benchmark.name}-{command_index}.log"
-                    let output_file =
-                        simulate_dir.join(format!("{}-{}.log", benchmark.name, command_index));
+                    // combined simpoint result at "{simulate_dir}/per-command/{benchmark.name}-{command_index}.log"
+                    let command_file =
+                        per_command_dir.join(format!("{}-{}.log", benchmark.name, command_index));
                     paths.push("--command-paths".to_string());
-                    paths.push(format!("{}", output_file.display()));
+                    paths.push(format!("{}", command_file.display()));
                 }
                 let args = format!(
                     "target/release/combine --output-path {} command {}",
