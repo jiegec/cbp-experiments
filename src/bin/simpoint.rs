@@ -1,5 +1,7 @@
 //! Use SimPoint methodology to reduce trace length
-use cbp_experiments::{TraceFileDecoder, create_insn_index_mapping, get_tqdm_style};
+use cbp_experiments::{
+    TraceFileDecoder, TraceFileEncoder, create_insn_index_mapping, get_tqdm_style,
+};
 use clap::Parser;
 use indicatif::ProgressIterator;
 use linfa::{
@@ -10,7 +12,7 @@ use linfa_clustering::KMeans;
 use matplotlib::{Matplotlib, MatplotlibOpts, Mpl, Run, commands as c, serde_json::Value};
 use ndarray::{Array2, Axis};
 use serde::Serialize;
-use std::path::PathBuf;
+use std::{fs::File, path::PathBuf};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -195,7 +197,7 @@ fn main() -> anyhow::Result<()> {
             .collect(),
     });
 
-    println!("Collected {} SimPoint slices", slices.len());
+    println!("Collected {} SimPoint slices, running K-Means", slices.len());
 
     // kmeans
     let mut vectors = Array2::<f64>::zeros((slices.len(), file.num_brs));
@@ -307,6 +309,78 @@ fn main() -> anyhow::Result<()> {
             end_instruction: slices[phase_nearest[i].unwrap().0].end_instruction,
         });
     }
+    // sort by start instruction
+    phases.sort_by_key(|phase| phase.start_instruction);
+
+    // iterate entries again and save the representative slice in each phase
+    println!("Saving {} slices", phases.len());
+    let mut trace_files = vec![];
+    let mut encoders = vec![];
+    for (phase_index, _phase) in phases.iter().enumerate() {
+        let trace_path = format!("{}-{}.log", args.output_prefix, phase_index);
+        trace_files.push(File::create(&trace_path)?);
+    }
+    for trace_file in &trace_files {
+        let mut encoder = TraceFileEncoder::open(&trace_file)?;
+        // for simplicity, copy all branches instead of re-creating one on the fly
+        encoder.branches = file.branches.to_vec();
+        encoders.push(encoder);
+    }
+
+    let pbar = indicatif::ProgressBar::new(file.num_entries as u64);
+    pbar.set_style(get_tqdm_style());
+
+    let mut last_targ_addr_index = None;
+    let mut instructions = 0;
+    let mut current_phase_index = 0;
+    for entries in file.entries()? {
+        for entry in entries {
+            let br_index = entry.get_br_index();
+            let taken = entry.get_taken();
+
+            // add instruction counting
+            if taken {
+                let curr_index = branch_infos[br_index].inst_addr_index;
+                if let Some(last_index) = last_targ_addr_index {
+                    // count instructions from last target address to the current branch address
+                    assert!(curr_index >= last_index);
+                    let new_insts = (curr_index - last_index + 1) as u64;
+                    instructions += new_insts;
+                }
+                last_targ_addr_index = Some(branch_infos[br_index].targ_addr_index);
+            }
+
+            // beyond the current simpoint representative slice?
+            if instructions > phases[current_phase_index].end_instruction {
+                current_phase_index += 1;
+            }
+
+            // all slices are finished?
+            if current_phase_index == phases.len() {
+                break;
+            }
+
+            // within the current simpoint representative slice?
+            if instructions >= phases[current_phase_index].start_instruction
+                && instructions <= phases[current_phase_index].end_instruction
+            {
+                encoders[current_phase_index].record_event_with_branch_index(br_index, taken)?;
+            }
+        }
+
+        // all slices are finished?
+        if current_phase_index == phases.len() {
+            break;
+        }
+
+        pbar.inc(entries.len() as u64);
+    }
+    pbar.finish();
+
+    // finish each slice
+    for encoder in encoders {
+        encoder.finish()?;
+    }
 
     let result = SimPointResult {
         trace_path: args.trace_path.clone(),
@@ -317,7 +391,7 @@ fn main() -> anyhow::Result<()> {
 
     let json_path = format!("{}.json", args.output_prefix);
     std::fs::write(&json_path, serde_json::to_vec_pretty(&result)?)?;
-    println!("Result written to {}", json_path);
+    println!("SimPoint configuration written to {}", json_path);
 
     // plot
     let plot_path = format!("{}.png", args.output_prefix);
