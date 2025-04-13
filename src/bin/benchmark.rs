@@ -94,6 +94,15 @@ struct Config {
 fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
 
+    // in case we have updated the source code
+    let sh_args = "cargo build --release";
+    println!("Running {}", sh_args);
+    let result = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(sh_args)
+        .status()?;
+    assert!(result.success());
+
     match &args.command {
         Commands::Record {
             tracer,

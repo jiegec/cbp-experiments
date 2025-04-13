@@ -197,7 +197,10 @@ fn main() -> anyhow::Result<()> {
             .collect(),
     });
 
-    println!("Collected {} SimPoint slices, running K-Means", slices.len());
+    println!(
+        "Collected {} SimPoint slices, running K-Means",
+        slices.len()
+    );
 
     // kmeans
     let mut vectors = Array2::<f64>::zeros((slices.len(), file.num_brs));
@@ -317,7 +320,7 @@ fn main() -> anyhow::Result<()> {
     let mut trace_files = vec![];
     let mut encoders = vec![];
     for (phase_index, _phase) in phases.iter().enumerate() {
-        let trace_path = format!("{}-{}.log", args.output_prefix, phase_index);
+        let trace_path = format!("{}-simpoint-{}.log", args.output_prefix, phase_index);
         trace_files.push(File::create(&trace_path)?);
     }
     for trace_file in &trace_files {
