@@ -8,7 +8,7 @@ pub use utils::*;
 #[cxx::bridge]
 mod ffi {
     #[repr(u32)]
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug, Clone, Copy, Serialize)]
     pub enum BranchType {
         /// jmp imm
         DirectJump,

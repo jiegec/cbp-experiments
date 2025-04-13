@@ -1,3 +1,5 @@
+use crate::BranchType;
+use serde::Serialize;
 use std::{
     collections::HashMap,
     fs::File,
@@ -5,12 +7,10 @@ use std::{
 };
 use zstd::{Encoder, stream::read::Decoder};
 
-use crate::BranchType;
-
 // follow definitions in common.h
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize)]
 pub struct Branch {
     pub inst_addr: u64,
     pub targ_addr: u64,

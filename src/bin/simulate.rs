@@ -5,6 +5,7 @@ use cbp_experiments::{
 };
 use clap::Parser;
 use cli_table::{Cell, Table, print_stdout};
+use serde::Serialize;
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -14,13 +15,13 @@ struct Cli {
     #[arg(short, long)]
     trace_path: PathBuf,
 
-    /// Predictor name
-    #[arg(short, long)]
-    predictor: String,
-
     /// Path to executable file
     #[arg(short, long)]
     exe_path: PathBuf,
+
+    /// Predictor name
+    #[arg(short, long)]
+    predictor: String,
 
     /// Skip count in instructions
     #[arg(short, long, default_value = "0")]
@@ -33,6 +34,10 @@ struct Cli {
     /// Simulation count in instructions
     #[arg(short, long, default_value = "0")]
     simulate: usize,
+
+    /// Path to result json
+    #[arg(short, long)]
+    output_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -44,9 +49,33 @@ pub struct BranchInfo {
     targ_addr_index: usize,
 }
 
+#[derive(Serialize)]
+pub struct SimulateResultBranchInfo {
+    /// branch
+    branch: Branch,
+    /// statistics
+    execution_count: u64,
+    taken_count: u64,
+    mispred_count: u64,
+}
+
+#[derive(Serialize)]
+pub struct SimulateResult {
+    /// configuration
+    trace_path: PathBuf,
+    exe_path: PathBuf,
+    predictor: String,
+    /// skip/warmup/simulate instruction count
+    skip: usize,
+    warmup: usize,
+    simulate: usize,
+    /// branch statistics
+    branch_info: Vec<SimulateResultBranchInfo>,
+}
+
 fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
-    let content = std::fs::read(args.trace_path)?;
+    let content = std::fs::read(&args.trace_path)?;
 
     // parse trace file
     let file = TraceFileDecoder::open(&content);
@@ -316,6 +345,30 @@ fn main() -> anyhow::Result<()> {
         h2p_count,
         num_cond_brs
     );
+
+    if let Some(output_path) = &args.output_path {
+        let mut result = SimulateResult {
+            trace_path: args.trace_path.clone(),
+            exe_path: args.exe_path.clone(),
+            predictor: args.predictor.clone(),
+            skip: args.skip,
+            warmup: args.warmup,
+            simulate: args.simulate,
+            branch_info: vec![],
+        };
+        for (info, branch) in &items {
+            if info.execution_count > 0 {
+                result.branch_info.push(SimulateResultBranchInfo {
+                    branch: **branch,
+                    execution_count: info.execution_count,
+                    taken_count: info.taken_count,
+                    mispred_count: info.mispred_count,
+                });
+            }
+        }
+
+        std::fs::write(output_path, serde_json::to_vec_pretty(&result)?)?;
+    }
 
     Ok(())
 }
