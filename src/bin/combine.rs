@@ -154,5 +154,8 @@ fn main() -> anyhow::Result<()> {
         total_cond_execution_count
     );
 
+    println!("Combined result written to {}", args.output_path.display());
+    std::fs::write(args.output_path, serde_json::to_vec_pretty(&combined)?)?;
+
     Ok(())
 }

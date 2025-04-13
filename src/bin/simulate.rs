@@ -342,6 +342,7 @@ fn main() -> anyhow::Result<()> {
             }
         }
 
+        println!("Result written to {}", output_path.display());
         std::fs::write(output_path, serde_json::to_vec_pretty(&result)?)?;
     }
 

@@ -335,7 +335,7 @@ fn main() -> anyhow::Result<()> {
                             benchmark.name, command_index, simpoint_index
                         ));
 
-                        // simulation result at "{simulate_dir}/{benchmark.name}-{command_index}-simpoint-{simpoint_index}.json"
+                        // simulation result at "{simulate_dir}/{benchmark.name}-{command_index}-simpoint-{simpoint_index}.log"
                         let output_file = dir.join(format!(
                             "{}-{}-simpoint-{}.log",
                             benchmark.name, command_index, simpoint_index
@@ -357,6 +357,24 @@ fn main() -> anyhow::Result<()> {
                             .status()?;
                         assert!(result.success());
                     }
+
+                    // combine results of simulations
+                    // combined result at "{simulate_dir}/{benchmark.name}-{command_index}.log"
+                    let output_file = dir.join(format!("{}-{}.log", benchmark.name, command_index));
+                    let args = format!(
+                        "target/release/combine --simpoint-path {} --result-path {} --output-path {}",
+                        get_simpoint_dir(config_name)
+                            .join(format!("{}-{}.json", benchmark.name, command_index))
+                            .display(),
+                        dir.display(),
+                        output_file.display(),
+                    );
+                    println!("Running {}", args);
+                    let result = std::process::Command::new("sh")
+                        .arg("-c")
+                        .arg(args)
+                        .status()?;
+                    assert!(result.success());
                 }
             }
         }
