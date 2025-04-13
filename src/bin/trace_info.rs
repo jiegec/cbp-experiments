@@ -23,8 +23,8 @@ struct Cli {
 pub struct BranchInfo {
     execution_count: u64,
     taken_count: u64,
-    inst_addr_index: usize,
-    targ_addr_index: usize,
+    inst_addr_index: u64,
+    targ_addr_index: u64,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -69,7 +69,7 @@ fn main() -> anyhow::Result<()> {
     );
 
     // create a mapping from instruction address to instruction index for instruction counting
-    let mut mapping: HashMap<u64, usize> = HashMap::new();
+    let mut mapping: HashMap<u64, u64> = HashMap::new();
     if let Some(elf) = &args.exe_path {
         mapping = create_insn_index_mapping(elf)?;
     }

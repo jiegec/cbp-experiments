@@ -24,15 +24,15 @@ struct Cli {
 
     /// Skip count in instructions
     #[arg(short, long, default_value = "0")]
-    skip: usize,
+    skip: u64,
 
     /// Warmup count in instructions
     #[arg(short, long, default_value = "0")]
-    warmup: usize,
+    warmup: u64,
 
     /// Simulation count in instructions
     #[arg(short, long, default_value = "0")]
-    simulate: usize,
+    simulate: u64,
 
     /// Path to result json
     #[arg(short, long)]
@@ -44,8 +44,8 @@ pub struct BranchInfo {
     execution_count: u64,
     taken_count: u64,
     mispred_count: u64,
-    inst_addr_index: usize,
-    targ_addr_index: usize,
+    inst_addr_index: u64,
+    targ_addr_index: u64,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -148,14 +148,14 @@ fn main() -> anyhow::Result<()> {
         }
 
         if instructions < args.skip {
-            pbar.set_length(args.skip as u64);
-            pbar.set_position(instructions as u64);
+            pbar.set_length(args.skip);
+            pbar.set_position(instructions);
         } else if instructions < args.skip + args.warmup {
-            pbar.set_length(args.warmup as u64);
-            pbar.set_position((instructions - args.skip) as u64);
+            pbar.set_length(args.warmup);
+            pbar.set_position(instructions - args.skip);
         } else {
-            pbar.set_length(args.simulate as u64);
-            pbar.set_position((instructions - args.skip - args.warmup) as u64);
+            pbar.set_length(args.simulate);
+            pbar.set_position(instructions - args.skip - args.warmup);
         }
 
         if instructions >= args.skip + args.warmup + args.simulate {
@@ -322,7 +322,7 @@ fn main() -> anyhow::Result<()> {
 
     if let Some(output_path) = &args.output_path {
         let mut result = SimulateResult {
-            trace_path: args.trace_path.clone(),
+            trace_path: Some(args.trace_path.clone()),
             exe_path: args.exe_path.clone(),
             predictor: args.predictor.clone(),
             skip: args.skip,

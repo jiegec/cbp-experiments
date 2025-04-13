@@ -16,7 +16,7 @@ pub fn get_tqdm_style() -> indicatif::ProgressStyle {
 // create a mapping from instruction address to instruction index for instruction counting
 pub fn create_insn_index_mapping<P: AsRef<std::path::Path>>(
     elf: P,
-) -> anyhow::Result<HashMap<u64, usize>> {
+) -> anyhow::Result<HashMap<u64, u64>> {
     let cs = Capstone::new()
         .x86()
         .mode(arch::x86::ArchMode::Mode64)
@@ -24,7 +24,7 @@ pub fn create_insn_index_mapping<P: AsRef<std::path::Path>>(
         .detail(true)
         .build()?;
 
-    let mut mapping: HashMap<u64, usize> = HashMap::new();
+    let mut mapping: HashMap<u64, u64> = HashMap::new();
     let binary_data = std::fs::read(elf)?;
     let file = object::File::parse(&*binary_data)?;
 

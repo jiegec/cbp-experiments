@@ -15,17 +15,15 @@ pub struct SimulateResultBranchInfo {
 #[derive(Serialize, Deserialize)]
 pub struct SimulateResult {
     /// configuration
-    pub trace_path: PathBuf,
+    /// combined simulation result might not have corresponding trace
+    pub trace_path: Option<PathBuf>,
     pub exe_path: PathBuf,
     pub predictor: String,
 
     /// skip/warmup/simulate instruction count
-    pub skip: usize,
-    pub warmup: usize,
-    pub simulate: usize,
-
-    /// branch statistics
-    pub branch_info: Vec<SimulateResultBranchInfo>,
+    pub skip: u64,
+    pub warmup: u64,
+    pub simulate: u64,
 
     /// overall statistics
     /// number of conditional branch mispredictions
@@ -36,4 +34,7 @@ pub struct SimulateResult {
     pub cmpki: f64,
     /// prediction accuracy of conditional branches (%)
     pub cond_branch_prediction_accuracy: f64,
+
+    /// per-branch statistics
+    pub branch_info: Vec<SimulateResultBranchInfo>,
 }

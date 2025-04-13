@@ -39,8 +39,8 @@ struct Cli {
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct BranchInfo {
-    inst_addr_index: usize,
-    targ_addr_index: usize,
+    inst_addr_index: u64,
+    targ_addr_index: u64,
 }
 
 /// SimPoint slice: a slice is a part of the full simulation trace
@@ -309,7 +309,7 @@ fn main() -> anyhow::Result<()> {
         trace_files.push(File::create(&trace_path)?);
     }
     for trace_file in &trace_files {
-        let mut encoder = TraceFileEncoder::open(&trace_file)?;
+        let mut encoder = TraceFileEncoder::open(trace_file)?;
         // for simplicity, copy all branches instead of re-creating one on the fly
         encoder.branches = file.branches.to_vec();
         encoders.push(encoder);

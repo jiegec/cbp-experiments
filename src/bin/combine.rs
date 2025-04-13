@@ -2,56 +2,104 @@
 use cbp_experiments::{
     Branch, BranchType, SimPointResult, SimulateResult, SimulateResultBranchInfo,
 };
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use cli_table::{Cell, Table, print_stdout};
 use std::{collections::HashMap, fs::File, path::PathBuf};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {
-    /// Path to SimPoint result
-    #[arg(short, long)]
-    simpoint_path: PathBuf,
-
-    /// Path to the folder containing simulation results
-    #[arg(short, long)]
-    result_path: PathBuf,
-
     /// Path to output file
     #[arg(short, long)]
     output_path: PathBuf,
+
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Combine result of SimPoint phases
+    #[clap(name = "simpoint")]
+    SimPoint {
+        /// Path to SimPoint result
+        #[arg(short, long)]
+        simpoint_path: PathBuf,
+
+        /// Path to the folder containing simulation results
+        #[arg(short, long)]
+        result_path: PathBuf,
+    },
+    /// Combine result of different commands
+    Command {
+        /// Path to command results
+        #[arg(short, long)]
+        command_paths: Vec<PathBuf>,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
 
-    println!(
-        "Loading SimPoint result from {}",
-        args.simpoint_path.display()
-    );
-    let simpoint_result: SimPointResult =
-        serde_json::from_reader(File::open(&args.simpoint_path)?)?;
-
+    // combined result
     let mut branch_info: Vec<SimulateResultBranchInfo> = vec![];
     let mut predictor = String::new();
+    let trace_path: Option<PathBuf>;
+    let mut exe_path = PathBuf::new();
+
+    // tuple of (input file, weight)
+    let mut input_files: Vec<(PathBuf, u64)> = vec![];
+    let mut override_total_instructions = None;
+    match &args.command {
+        Commands::SimPoint {
+            simpoint_path,
+            result_path,
+        } => {
+            println!("Loading SimPoint result from {}", simpoint_path.display());
+            let simpoint_result: SimPointResult =
+                serde_json::from_reader(File::open(simpoint_path)?)?;
+
+            for (simpoint_index, phase) in simpoint_result.phases.iter().enumerate() {
+                let result_file = result_path.join(format!(
+                    "{}-simpoint-{}.log",
+                    simpoint_path.file_stem().unwrap().to_str().unwrap(),
+                    simpoint_index
+                ));
+
+                // since only half of the simpoint is used for simulation (the other half is used for warmup)
+                // the counts should be multipled by phase.weight * 2
+                let weight = phase.weight * 2;
+                input_files.push((result_file, weight));
+            }
+
+            // use the total instructions count from simpoint result
+            override_total_instructions = Some(simpoint_result.total_instructions);
+            trace_path = Some(simpoint_result.trace_path.clone());
+        }
+        Commands::Command { command_paths } => {
+            // all command results have weight of 1
+            for command_path in command_paths {
+                input_files.push((command_path.clone(), 1));
+            }
+            trace_path = None;
+        }
+    }
 
     // maintain mapping from branch to index in branch_info array
     let mut mapping: HashMap<Branch, usize> = HashMap::new();
-    for (simpoint_index, phase) in simpoint_result.phases.iter().enumerate() {
-        let result_file = args.result_path.join(format!(
-            "{}-simpoint-{}.log",
-            args.simpoint_path.file_stem().unwrap().to_str().unwrap(),
-            simpoint_index
-        ));
-        println!("Loading simulation result from {}", result_file.display());
-        let simulate_result: SimulateResult = serde_json::from_reader(File::open(&result_file)?)?;
+    let mut total_instructions = 0;
+    for (input_file, weight) in input_files {
+        println!("Loading simulation result from {}", input_file.display());
+        let simulate_result: SimulateResult = serde_json::from_reader(File::open(&input_file)?)?;
+
+        // save metadata
         predictor = simulate_result.predictor;
+        exe_path = simulate_result.exe_path;
+
+        total_instructions += simulate_result.simulate;
 
         // merge branch info
         for info in &simulate_result.branch_info {
-            // since only half of the simpoint is used for simulation (the other half is used for warmup)
-            // the counts should be multipled by phase.weight * 2
-            let weight = phase.weight * 2;
             match mapping.get(&info.branch) {
                 Some(index) => {
                     branch_info[*index].execution_count += info.execution_count * weight;
@@ -69,6 +117,11 @@ fn main() -> anyhow::Result<()> {
                 }
             }
         }
+    }
+
+    // if merging simpoint result, use the total count instead
+    if let Some(instructions) = override_total_instructions {
+        total_instructions = instructions;
     }
 
     println!("Top branches by execution count:");
@@ -122,10 +175,10 @@ fn main() -> anyhow::Result<()> {
         "- Conditional branch mispredictions: {}",
         total_mispred_count,
     );
-    let cmpki = total_mispred_count as f64 * 1000.0 / simpoint_result.total_instructions as f64;
+    let cmpki = total_mispred_count as f64 * 1000.0 / total_instructions as f64;
     println!(
         "- Conditional branch mispredictions per kilo instructions (CMPKI): {:.2} = {} * 1000 / {}",
-        cmpki, total_mispred_count, simpoint_result.total_instructions
+        cmpki, total_mispred_count, total_instructions
     );
     println!(
         "- Executed conditional branches: {}",
@@ -139,12 +192,12 @@ fn main() -> anyhow::Result<()> {
     );
 
     let combined = SimulateResult {
-        trace_path: simpoint_result.trace_path.clone(),
-        exe_path: simpoint_result.exe_path.clone(),
+        trace_path,
+        exe_path,
         predictor,
         skip: 0,
         warmup: 0,
-        simulate: simpoint_result.total_instructions as usize,
+        simulate: total_instructions,
         branch_info,
         total_mispred_count,
         total_cond_execution_count,

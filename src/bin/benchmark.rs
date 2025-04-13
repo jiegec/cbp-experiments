@@ -302,6 +302,14 @@ fn main() -> anyhow::Result<()> {
             let config: Config =
                 serde_json::from_slice(&std::fs::read(get_config_path(config_name))?)?;
 
+            // simulation result under "{simulate_dir}/"
+            let simulate_dir = get_simulate_dir(
+                config_name,
+                &Local::now().format("%Y%m%d-%H%M%S").to_string(),
+                predictor,
+            );
+            create_dir_all(&simulate_dir)?;
+
             for benchmark in &config.benchmarks {
                 for (command_index, _command) in benchmark.commands.iter().enumerate() {
                     // simpoint result at "{simpoint_dir}/{benchmark.name}-{command_index}.json"
@@ -317,14 +325,6 @@ fn main() -> anyhow::Result<()> {
                     let simpoint_config: SimPointResult =
                         serde_json::from_reader(File::open(&simpoint_result_path)?)?;
 
-                    // simulation result under "{simulate_dir}/"
-                    let dir = get_simulate_dir(
-                        config_name,
-                        &Local::now().format("%Y%m%d-%H%M%S").to_string(),
-                        &predictor,
-                    );
-                    create_dir_all(&dir)?;
-
                     // simulate on each simpoint phase
                     for (simpoint_index, _phase) in simpoint_config.phases.iter().enumerate() {
                         // trace file at "{simpoint_dir}/{benchmark.name}-{command_index}-simpoint-{simpoint_index}.log"
@@ -336,7 +336,7 @@ fn main() -> anyhow::Result<()> {
                         ));
 
                         // simulation result at "{simulate_dir}/{benchmark.name}-{command_index}-simpoint-{simpoint_index}.log"
-                        let output_file = dir.join(format!(
+                        let output_file = simulate_dir.join(format!(
                             "{}-{}-simpoint-{}.log",
                             benchmark.name, command_index, simpoint_index
                         ));
@@ -360,14 +360,15 @@ fn main() -> anyhow::Result<()> {
 
                     // combine results of simulations
                     // combined result at "{simulate_dir}/{benchmark.name}-{command_index}.log"
-                    let output_file = dir.join(format!("{}-{}.log", benchmark.name, command_index));
+                    let output_file =
+                        simulate_dir.join(format!("{}-{}.log", benchmark.name, command_index));
                     let args = format!(
-                        "target/release/combine --simpoint-path {} --result-path {} --output-path {}",
+                        "target/release/combine --output-path {} simpoint --simpoint-path {} --result-path {}",
+                        output_file.display(),
                         get_simpoint_dir(config_name)
                             .join(format!("{}-{}.json", benchmark.name, command_index))
                             .display(),
-                        dir.display(),
-                        output_file.display(),
+                        simulate_dir.display(),
                     );
                     println!("Running {}", args);
                     let result = std::process::Command::new("sh")
@@ -376,6 +377,29 @@ fn main() -> anyhow::Result<()> {
                         .status()?;
                     assert!(result.success());
                 }
+
+                // combine results of different commands
+                // combined result at "{simulate_dir}/{benchmark.name}.log"
+                let output_file = simulate_dir.join(format!("{}.log", benchmark.name));
+                let mut paths = vec![];
+                for (command_index, _command) in benchmark.commands.iter().enumerate() {
+                    // combined simpoint result at "{simulate_dir}/{benchmark.name}-{command_index}.log"
+                    let output_file =
+                        simulate_dir.join(format!("{}-{}.log", benchmark.name, command_index));
+                    paths.push("--command-paths".to_string());
+                    paths.push(format!("{}", output_file.display()));
+                }
+                let args = format!(
+                    "target/release/combine --output-path {} command {}",
+                    output_file.display(),
+                    paths.join(" ")
+                );
+                println!("Running {}", args);
+                let result = std::process::Command::new("sh")
+                    .arg("-c")
+                    .arg(args)
+                    .status()?;
+                assert!(result.success());
             }
         }
     }
