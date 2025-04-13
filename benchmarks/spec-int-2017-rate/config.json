@@ -25,5 +25,69 @@
         }, {
             "args": "ref32.c -O3 -fselective-scheduling -fselective-scheduling2 -o ref32.opts-O3_-fselective-scheduling_-fselective-scheduling2.s"
         }]
+    }, {
+        "name": "505.mcf_r",
+        "data": "spec2017/data/505.mcf_r",
+        "executable": "spec2017/build/505.mcf_r/505.mcf_r",
+        "commands": [{
+            "args": "inp.in"
+        }]
+    }, {
+        "name": "520.omnetpp_r",
+        "data": "spec2017/data/520.omnetpp_r",
+        "executable": "spec2017/build/520.omnetpp_r/520.omnetpp_r",
+        "commands": [{
+            "args": "-c General -r 0"
+        }]
+    }, {
+        "name": "523.xalancbmk_r",
+        "data": "spec2017/data/523.xalancbmk_r",
+        "executable": "spec2017/build/523.xalancbmk_r/523.xalancbmk_r",
+        "commands": [{
+            "args": "-v t5.xml xalanc.xsl"
+        }]
+    }, {
+        "name": "525.x264_r",
+        "data": "spec2017/data/525.x264_r",
+        "executable": "spec2017/build/525.x264_r/525.x264_r",
+        "commands": [{
+            "args": "--pass 1 --stats x264_stats.log --bitrate 1000 --frames 1000 -o BuckBunny_New.264 BuckBunny.yuv 1280x720"
+        }, {
+            "args": "--pass 2 --stats x264_stats.log --bitrate 1000 --dumpyuv 200 --frames 1000 -o BuckBunny_New.264 BuckBunny.yuv 1280x720"
+        }, {
+            "args": "--seek 500 --dumpyuv 200 --frames 1250 -o BuckBunny_New.264 BuckBunny.yuv 1280x720"
+        }]
+    }, {
+        "name": "531.deepsjeng_r",
+        "data": "spec2017/data/531.deepsjeng_r",
+        "executable": "spec2017/build/531.deepsjeng_r/531.deepsjeng_r",
+        "commands": [{
+            "args": "ref.txt"
+        }]
+    }, {
+        "name": "541.leela_r",
+        "data": "spec2017/data/541.leela_r",
+        "executable": "spec2017/build/541.leela_r/541.leela_r",
+        "commands": [{
+            "args": "ref.sgf"
+        }]
+    }, {
+        "name": "548.exchange2_r",
+        "data": "spec2017/data/548.exchange2_r",
+        "executable": "spec2017/build/548.exchange2_r/548.exchange2_r",
+        "commands": [{
+            "args": "6"
+        }]
+    }, {
+        "name": "557.xz_r",
+        "data": "spec2017/data/557.xz_r",
+        "executable": "spec2017/build/557.xz_r/557.xz_r",
+        "commands": [{
+            "args": "cld.tar.xz 160 19cf30ae51eddcbefda78dd06014b4b96281456e078ca7c13e1c0c9e6aaea8dff3efb4ad6b0456697718cede6bd5454852652806a657bb56e07d61128434b474 59796407 61004416 6"
+        }, {
+            "args": "cpu2006docs.tar.xz 250 055ce243071129412e9dd0b3b69a21654033a9b723d874b2015c774fac1553d9713be561ca86f74e4f16f22e664fc17a79f30caa5ad2c04fbc447549c2810fae 23047774 23513385 6e"
+        }, {
+            "args": "input.combined.xz 250 a841f68f38572a49d86226b7ff5baeb31bd19dc637a922a972b2e6d1257a890f6a544ecab967c313e370478c74f760eb229d4eef8a8d2836d233d3e9dd1430bf 40401484 41217675 7"
+        }]
     }]
 }

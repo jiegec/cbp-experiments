@@ -9,6 +9,7 @@ use serde::Deserialize;
 use std::{
     fs::{File, create_dir_all},
     path::PathBuf,
+    process::Stdio,
 };
 use tempdir::TempDir;
 
@@ -186,6 +187,9 @@ fn main() -> anyhow::Result<()> {
                             let result = std::process::Command::new("sh")
                                 .arg("-c")
                                 .arg(args)
+                                .stdin(Stdio::null())
+                                .stdout(Stdio::null())
+                                .stderr(Stdio::null())
                                 .current_dir(tmp_dir.path())
                                 .status()?;
                             assert!(result.success());
@@ -202,6 +206,9 @@ fn main() -> anyhow::Result<()> {
                             let result = std::process::Command::new("sh")
                                 .arg("-c")
                                 .arg(args)
+                                .stdin(Stdio::null())
+                                .stdout(Stdio::null())
+                                .stderr(Stdio::null())
                                 .current_dir(tmp_dir.path())
                                 .status()?;
                             assert!(result.success());
@@ -220,6 +227,9 @@ fn main() -> anyhow::Result<()> {
                             let result = std::process::Command::new("sh")
                                 .arg("-c")
                                 .arg(args)
+                                .stdin(Stdio::null())
+                                .stdout(Stdio::null())
+                                .stderr(Stdio::null())
                                 .current_dir(tmp_dir.path())
                                 .status()?;
                             assert!(result.success());
