@@ -260,21 +260,20 @@ fn main() -> anyhow::Result<()> {
         "- Conditional branch mispredictions: {}",
         total_mispred_count,
     );
+    let cmpki = total_mispred_count as f64 * 1000.0 / args.simulate as f64;
     println!(
         "- Conditional branch mispredictions per kilo instructions (CMPKI): {:.2} = {} * 1000 / {}",
-        total_mispred_count as f64 * 1000.0 / args.simulate as f64,
-        total_mispred_count,
-        args.simulate
+        cmpki, total_mispred_count, args.simulate
     );
     println!(
         "- Executed conditional branches: {}",
         total_cond_execution_count,
     );
+    let cond_branch_prediction_accuracy =
+        100.0 - total_mispred_count as f64 * 100.0 / total_cond_execution_count as f64;
     println!(
         "- Prediction accuracy of conditional branches: {:.2}% = 1 - {} / {}",
-        100.0 - total_mispred_count as f64 * 100.0 / total_cond_execution_count as f64,
-        total_mispred_count,
-        total_cond_execution_count
+        cond_branch_prediction_accuracy, total_mispred_count, total_cond_execution_count
     );
     println!(
         "- Number of H2P conditional branches (static H2P branches): {}",
@@ -330,6 +329,10 @@ fn main() -> anyhow::Result<()> {
             warmup: args.warmup,
             simulate: args.simulate,
             branch_info: vec![],
+            total_mispred_count,
+            total_cond_execution_count,
+            cmpki,
+            cond_branch_prediction_accuracy,
         };
         for (info, branch) in &items {
             if info.execution_count > 0 {
