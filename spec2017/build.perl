@@ -85,11 +85,6 @@ sub add_target {
     $bench_fflags = $bench_fflags . " " . $bench_fppflags . " " . $bench_flags;
 
     print(FH "target_compile_options(", $target, " PRIVATE\n\t\$<\$<COMPILE_LANGUAGE:C>:", $bench_cflags, ">\n\t\$<\$<COMPILE_LANGUAGE:CXX>:", $bench_cxxflags, ">\n\t\$<\$<COMPILE_LANGUAGE:Fortran>:", $bench_fflags, ">)\n");
-
-    # handle same fortran source in multiple targets in 521.wrf_r
-    # https://stackoverflow.com/questions/73036890/cmake-multiple-version-of-fortran-mod-files
-    print(FH "set_target_properties(", $target, " PROPERTIES Fortran_MODULE_DIRECTORY \${CMAKE_CURRENT_BINARY_DIR}/modules/", $target, ")\n");
-    print(FH "target_include_directories(", $target, " PUBLIC \${CMAKE_CURRENT_BINARY_DIR}/modules/", $target, ")\n");
 }
 
 system("rm -rf data");

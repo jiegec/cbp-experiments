@@ -1,7 +1,8 @@
 {
     "benchmarks": [{
-        "name": "perlbench",
-        "executable": "TODO",
+        "name": "500.perlbench_r",
+        "data": "spec2017/data/500.perlbench_r",
+        "executable": "spec2017/build/500.perlbench_r/500.perlbench_r",
         "commands": [{
             "args": "-I./lib checkspam.pl 2500 5 25 11 150 1 1 1 1"
         }, {
@@ -10,8 +11,9 @@
             "args": "-I./lib splitmail.pl 6400 12 26 16 100 0"
         }]
     }, {
-        "name": "gcc",
-        "executable": "TODO",
+        "name": "502.gcc_r",
+        "data": "spec2017/data/502.gcc_r",
+        "executable": "spec2017/build/502.gcc_r/502.gcc_r",
         "commands": [{
             "args": "gcc-pp.c -O3 -finline-limit=0 -fif-conversion -fif-conversion2 -o gcc-pp.opts-O3_-finline-limit_0_-fif-conversion_-fif-conversion2.s"
         }, {

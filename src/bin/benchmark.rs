@@ -4,11 +4,13 @@ use cbp_experiments::{
 };
 use chrono::Local;
 use clap::{Parser, Subcommand, ValueEnum};
+use resolve_path::PathResolveExt;
 use serde::Deserialize;
 use std::{
     fs::{File, create_dir_all},
     path::PathBuf,
 };
+use tempdir::TempDir;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -89,6 +91,8 @@ struct Benchmark {
     name: String,
     /// Path to its executable
     executable: String,
+    /// Path to its data folder
+    data: Option<PathBuf>,
     /// It may contain multiple commands to run
     commands: Vec<Command>,
 }
@@ -121,6 +125,8 @@ fn main() -> anyhow::Result<()> {
         .status()?;
     assert!(result.success());
 
+    let cwd = std::env::current_dir()?;
+
     match &args.command {
         Commands::Record {
             tracer,
@@ -133,6 +139,25 @@ fn main() -> anyhow::Result<()> {
 
             for benchmark in &config.benchmarks {
                 for (command_index, command) in benchmark.commands.iter().enumerate() {
+                    // create a temporary folder to run the benchmark
+
+                    let tmp_dir = TempDir::new("cbp-experiments")?;
+
+                    // copy files under data to tmp_dir
+                    if let Some(data_path) = &benchmark.data {
+                        let args = format!(
+                            "rsync -avz --progress {}/ {}/",
+                            cwd.join(data_path).display(),
+                            tmp_dir.path().display()
+                        );
+                        println!("Running {}", args);
+                        let result = std::process::Command::new("sh")
+                            .arg("-c")
+                            .arg(args)
+                            .status()?;
+                        assert!(result.success());
+                    }
+
                     // run: "{benchmark.executable} {command.args}"
                     // generate trace file at "{trace_dir}/{benchmark.name}-{command_index}.log"
                     let dir = get_trace_dir(config_name, tracer_name);
@@ -146,32 +171,38 @@ fn main() -> anyhow::Result<()> {
                         benchmark.executable,
                         command.args
                     );
+                    // resolve executable path before changing cwd
+                    let exe_path = benchmark.executable.resolve();
                     match tracer {
                         Tracer::Pin => {
                             let args = format!(
-                                "time ~/prefix/pin/pin -t tracers/pin/obj-intel64/brtrace.so -o {} -- {} {}",
-                                trace_file.display(),
-                                benchmark.executable,
+                                "time ~/prefix/pin/pin -t {} -o {} -- {} {}",
+                                cwd.join("tracers/pin/obj-intel64/brtrace.so").display(),
+                                cwd.join(&trace_file).display(),
+                                exe_path.display(),
                                 command.args
                             );
-                            println!("Running {}", args);
+                            println!("Running {} under {}", args, tmp_dir.path().display());
                             let result = std::process::Command::new("sh")
                                 .arg("-c")
                                 .arg(args)
+                                .current_dir(tmp_dir.path())
                                 .status()?;
                             assert!(result.success());
                         }
                         Tracer::DynamoRIO => {
                             let args = format!(
-                                "time ~/prefix/dynamorio/bin64/drrun -c tracers/dynamorio/build/libbrtrace.so {} -- {} {}",
-                                trace_file.display(),
-                                benchmark.executable,
+                                "time ~/prefix/dynamorio/bin64/drrun -c {} {} -- {} {}",
+                                cwd.join("tracers/dynamorio/build/libbrtrace.so").display(),
+                                cwd.join(&trace_file).display(),
+                                exe_path.display(),
                                 command.args
                             );
                             println!("Running {}", args);
                             let result = std::process::Command::new("sh")
                                 .arg("-c")
                                 .arg(args)
+                                .current_dir(tmp_dir.path())
                                 .status()?;
                             assert!(result.success());
                         }
@@ -181,14 +212,15 @@ fn main() -> anyhow::Result<()> {
                                 dir.join(format!("{}-{}-perf.log", benchmark.name, command_index));
                             let args = format!(
                                 "time numactl -C 0 perf record -e intel_pt//u -o {} -- {} {}",
-                                perf_data_file.display(),
-                                benchmark.executable,
+                                cwd.join(&perf_data_file).display(),
+                                exe_path.display(),
                                 command.args
                             );
                             println!("Running {}", args);
                             let result = std::process::Command::new("sh")
                                 .arg("-c")
                                 .arg(args)
+                                .current_dir(tmp_dir.path())
                                 .status()?;
                             assert!(result.success());
 
