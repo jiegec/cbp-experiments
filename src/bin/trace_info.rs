@@ -1,4 +1,4 @@
-/// Display info and statistics of trace file
+//! Display info and statistics of trace file
 use cbp_experiments::{
     Branch, BranchType, TraceFileDecoder, create_insn_index_mapping, get_tqdm_style,
 };

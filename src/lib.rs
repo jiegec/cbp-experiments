@@ -1,16 +1,18 @@
 mod simpoint;
+mod simulate;
 mod trace;
 mod utils;
 
 pub use ffi::*;
 pub use simpoint::*;
+pub use simulate::*;
 pub use trace::*;
 pub use utils::*;
 
 #[cxx::bridge]
 mod ffi {
     #[repr(u32)]
-    #[derive(Debug, Clone, Copy, Serialize)]
+    #[derive(Debug, Clone, Copy, Serialize, Deserialize, Hash, PartialEq, Eq)]
     pub enum BranchType {
         /// jmp imm
         DirectJump,

@@ -1,11 +1,10 @@
 //! Test branch prediction accuracy
-use cbp_experiments::new_predictor;
 use cbp_experiments::{
     Branch, BranchType, TraceFileDecoder, create_insn_index_mapping, get_tqdm_style,
 };
+use cbp_experiments::{SimulateResult, SimulateResultBranchInfo, new_predictor};
 use clap::Parser;
 use cli_table::{Cell, Table, print_stdout};
-use serde::Serialize;
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -47,30 +46,6 @@ pub struct BranchInfo {
     mispred_count: u64,
     inst_addr_index: usize,
     targ_addr_index: usize,
-}
-
-#[derive(Serialize)]
-pub struct SimulateResultBranchInfo {
-    /// branch
-    branch: Branch,
-    /// statistics
-    execution_count: u64,
-    taken_count: u64,
-    mispred_count: u64,
-}
-
-#[derive(Serialize)]
-pub struct SimulateResult {
-    /// configuration
-    trace_path: PathBuf,
-    exe_path: PathBuf,
-    predictor: String,
-    /// skip/warmup/simulate instruction count
-    skip: usize,
-    warmup: usize,
-    simulate: usize,
-    /// branch statistics
-    branch_info: Vec<SimulateResultBranchInfo>,
 }
 
 fn main() -> anyhow::Result<()> {

@@ -162,6 +162,8 @@ fn main() -> anyhow::Result<()> {
     }
     pbar.finish();
 
+    let total_instructions = instructions;
+
     // create a new simpoint
     let sum_insts: u64 = current_simpoint_basic_block_vector.iter().sum();
     slices.push(SimPointSlice {
@@ -297,7 +299,7 @@ fn main() -> anyhow::Result<()> {
     let mut trace_files = vec![];
     let mut encoders = vec![];
     println!(
-        "Creating SimPoint slice at {}-simpoint-[{}-{}].log",
+        "Creating SimPoint slices at {}-simpoint-[{}-{}].log",
         args.output_prefix,
         0,
         phases.len() - 1
@@ -372,6 +374,7 @@ fn main() -> anyhow::Result<()> {
         trace_path: args.trace_path.clone(),
         exe_path: args.exe_path.clone(),
         size: args.size,
+        total_instructions,
         phases,
     };
 
