@@ -8,8 +8,5 @@ make
 popd
 
 pushd pin
-for file_path in "$HOME"/pin-external-*/; do
-    make clean all TARGET=intel64 PIN_ROOT=$file_path
-    break
-done
+make clean all TARGET=intel64 PIN_ROOT=$HOME/prefix/pin
 popd
