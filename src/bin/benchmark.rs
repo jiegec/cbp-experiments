@@ -1,7 +1,12 @@
 //! Operations on predefined benchmarks
+use cbp_experiments::SimPointResult;
+use chrono::Local;
 use clap::{Parser, Subcommand, ValueEnum};
 use serde::Deserialize;
-use std::path::PathBuf;
+use std::{
+    fs::{File, create_dir_all},
+    path::PathBuf,
+};
 
 // benchmark folder structure
 // benchmarks/
@@ -67,6 +72,16 @@ enum Commands {
         /// SimPoint slice size in instructions
         #[arg(short, long)]
         size: u64,
+    },
+    /// Simulate branch prediction
+    Simulate {
+        /// Benchmark config name
+        #[arg(short, long)]
+        config_name: PathBuf,
+
+        /// Predictor name
+        #[arg(short, long)]
+        predictor: String,
     },
 }
 
@@ -311,6 +326,81 @@ fn main() -> anyhow::Result<()> {
                         .arg(args)
                         .status()?;
                     assert!(result.success());
+                }
+            }
+        }
+        Commands::Simulate {
+            config_name,
+            predictor,
+        } => {
+            let config: Config = serde_json::from_slice(&std::fs::read(
+                PathBuf::from("benchmarks")
+                    .join(config_name)
+                    .join("config.json"),
+            )?)?;
+
+            for benchmark in &config.benchmarks {
+                for (command_index, _command) in benchmark.commands.iter().enumerate() {
+                    // simpoint result at "benchmarks/{folder}/simpoint/{benchmark.name}-{command_index}.json"
+                    let dir = PathBuf::from("benchmarks")
+                        .join(config_name)
+                        .join("simpoint");
+
+                    let simpoint_result_path =
+                        dir.join(format!("{}-{}.json", benchmark.name, command_index));
+                    println!(
+                        "Parsing SimPoint result at {}",
+                        simpoint_result_path.display()
+                    );
+
+                    let simpoint_config: SimPointResult =
+                        serde_json::from_reader(File::open(&simpoint_result_path)?)?;
+
+                    // simulation result under "benchmarks/{folder}/simulate/{datetime}-{config_name}/"
+                    let dir = PathBuf::from("benchmarks")
+                        .join(config_name)
+                        .join("simulate")
+                        .join(format!(
+                            "{}-{}",
+                            Local::now().format("%Y%m%d-%H%M%S"),
+                            config_name.display()
+                        ));
+                    create_dir_all(&dir)?;
+
+                    // simulate on each simpoint phase
+                    for (simpoint_index, _phase) in simpoint_config.phases.iter().enumerate() {
+                        // trace file at "benchmarks/{folder}/simpoint/{benchmark.name}-{command_index}-simpoint-{simpoint_index}.log"
+                        let trace_dir = PathBuf::from("benchmarks")
+                            .join(config_name)
+                            .join("simpoint");
+
+                        let trace_file = trace_dir.join(format!(
+                            "{}-{}-simpoint-{}.log",
+                            benchmark.name, command_index, simpoint_index
+                        ));
+
+                        // simulation result at "benchmarks/{folder}/simulate/{datetime}-{config_name}/{benchmark.name}-{command_index}-simpoint-{simpoint_index}.json"
+                        let output_file = dir.join(format!(
+                            "{}-{}-simpoint-{}.log",
+                            benchmark.name, command_index, simpoint_index
+                        ));
+                        let args = format!(
+                            "target/release/simulate --trace-path {} --predictor {} --exe-path {} --skip 0 --warmup {} --simulate {} --output-path {}",
+                            trace_file.display(),
+                            predictor,
+                            benchmark.executable,
+                            // half for warmup, half for simulate
+                            simpoint_config.size / 2,
+                            simpoint_config.size / 2,
+                            output_file.display()
+                        );
+                        println!("Running {}", args);
+                        let result = std::process::Command::new("sh")
+                            .arg("-c")
+                            .arg(args)
+                            .status()?;
+                        assert!(result.success());
+                    }
                 }
             }
         }

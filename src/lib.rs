@@ -1,7 +1,9 @@
+mod simpoint;
 mod trace;
 mod utils;
 
 pub use ffi::*;
+pub use simpoint::*;
 pub use trace::*;
 pub use utils::*;
 

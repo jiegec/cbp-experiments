@@ -1,6 +1,7 @@
 //! Use SimPoint methodology to reduce trace length
 use cbp_experiments::{
-    TraceFileDecoder, TraceFileEncoder, create_insn_index_mapping, get_tqdm_style,
+    SimPointPhase, SimPointResult, TraceFileDecoder, TraceFileEncoder, create_insn_index_mapping,
+    get_tqdm_style,
 };
 use clap::Parser;
 use indicatif::ProgressIterator;
@@ -11,7 +12,6 @@ use linfa::{
 use linfa_clustering::KMeans;
 use matplotlib::{Matplotlib, MatplotlibOpts, Mpl, Run, commands as c, serde_json::Value};
 use ndarray::{Array2, Axis};
-use serde::Serialize;
 use std::{fs::File, path::PathBuf};
 
 #[derive(Parser)]
@@ -52,29 +52,6 @@ pub struct SimPointSlice {
     end_instruction: u64,
     /// basic block vector: the instructions executed in each basic block (marked by the trailing branch), normalized
     basic_block_vector: Vec<f64>,
-}
-
-/// SimPoint phase: a phase is a cluster
-#[derive(Debug, Clone, Default, Serialize)]
-pub struct SimPointPhase {
-    /// the number of slices in the phase
-    weight: u64,
-    /// the starting instruction of the representative slice
-    start_instruction: u64,
-    /// the ending instruction of the representative slice
-    end_instruction: u64,
-}
-
-#[derive(Debug, Clone, Default, Serialize)]
-pub struct SimPointResult {
-    /// Path to trace file
-    trace_path: PathBuf,
-    /// Path to executable file
-    exe_path: PathBuf,
-    /// SimPoint slice size in instructions
-    size: u64,
-    /// SimPoint phases
-    phases: Vec<SimPointPhase>,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
