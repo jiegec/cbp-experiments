@@ -1,5 +1,7 @@
 //! Combine simulation results of multiple SimPoint phases
-use cbp_experiments::{Branch, SimPointResult, SimulateResult, SimulateResultBranchInfo};
+use cbp_experiments::{
+    Branch, BranchType, SimPointResult, SimulateResult, SimulateResultBranchInfo,
+};
 use clap::Parser;
 use cli_table::{Cell, Table, print_stdout};
 use std::{collections::HashMap, fs::File, path::PathBuf};
@@ -106,6 +108,51 @@ fn main() -> anyhow::Result<()> {
         "Misprediction Rate (%)".cell(),
     ]);
     print_stdout(table)?;
+
+    println!("Overall statistics:");
+    // compute mpki
+    let num_cond_brs_executed = combined
+        .branch_info
+        .iter()
+        .filter(|info| {
+            info.branch.branch_type == BranchType::ConditionalDirectJump && info.execution_count > 0
+        })
+        .count();
+    let total_cond_execution_count: u64 = combined
+        .branch_info
+        .iter()
+        .filter(|info| info.branch.branch_type == BranchType::ConditionalDirectJump)
+        .map(|info| info.execution_count)
+        .sum();
+    let total_mispred_count: u64 = combined
+        .branch_info
+        .iter()
+        .map(|info| info.mispred_count)
+        .sum();
+    println!(
+        "- Number of conditional branches executed at least once (static branches per slice): {}",
+        num_cond_brs_executed,
+    );
+    println!(
+        "- Conditional branch mispredictions: {}",
+        total_mispred_count,
+    );
+    println!(
+        "- Conditional branch mispredictions per kilo instructions (CMPKI): {:.2} = {} * 1000 / {}",
+        total_mispred_count as f64 * 1000.0 / simpoint_result.total_instructions as f64,
+        total_mispred_count,
+        simpoint_result.total_instructions
+    );
+    println!(
+        "- Executed conditional branches: {}",
+        total_cond_execution_count,
+    );
+    println!(
+        "- Prediction accuracy of conditional branches: {:.2}% = 1 - {} / {}",
+        100.0 - total_mispred_count as f64 * 100.0 / total_cond_execution_count as f64,
+        total_mispred_count,
+        total_cond_execution_count
+    );
 
     Ok(())
 }
