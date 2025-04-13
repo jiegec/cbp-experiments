@@ -319,6 +319,12 @@ fn main() -> anyhow::Result<()> {
     println!("Saving {} slices", phases.len());
     let mut trace_files = vec![];
     let mut encoders = vec![];
+    println!(
+        "Creating SimPoint slice at {}-simpoint-[{}-{}].log",
+        args.output_prefix,
+        0,
+        phases.len() - 1
+    );
     for (phase_index, _phase) in phases.iter().enumerate() {
         let trace_path = format!("{}-simpoint-{}.log", args.output_prefix, phase_index);
         trace_files.push(File::create(&trace_path)?);
