@@ -2,12 +2,14 @@ mod simpoint;
 mod simulate;
 mod trace;
 mod utils;
+mod path;
 
 pub use ffi::*;
 pub use simpoint::*;
 pub use simulate::*;
 pub use trace::*;
 pub use utils::*;
+pub use path::*;
 
 #[cxx::bridge]
 mod ffi {

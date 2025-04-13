@@ -1,5 +1,7 @@
 //! Operations on predefined benchmarks
-use cbp_experiments::SimPointResult;
+use cbp_experiments::{
+    SimPointResult, get_config_path, get_simpoint_dir, get_simulate_dir, get_trace_dir,
+};
 use chrono::Local;
 use clap::{Parser, Subcommand, ValueEnum};
 use serde::Deserialize;
@@ -7,16 +9,6 @@ use std::{
     fs::{File, create_dir_all},
     path::PathBuf,
 };
-
-// benchmark folder structure
-// benchmarks/
-// \- config-name
-//    |- config.json
-//    \- traces
-//       \- tracer-name
-//          \- benchmark-name-0.log
-//       \- final
-//          \- benchmark-name-0.log -> ../tracer-name/benchmark-name-0.log
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -106,6 +98,17 @@ struct Config {
     benchmarks: Vec<Benchmark>,
 }
 
+fn get_tracer_name(tracer: &Option<Tracer>) -> String {
+    match tracer {
+        Some(tracer) => {
+            let tracer_possible_value = tracer.to_possible_value().unwrap();
+            let tracer_name = tracer_possible_value.get_name();
+            tracer_name.to_string()
+        }
+        None => "final".to_string(),
+    }
+}
+
 fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
 
@@ -125,20 +128,14 @@ fn main() -> anyhow::Result<()> {
         } => {
             let tracer_possible_value = tracer.to_possible_value().unwrap();
             let tracer_name = tracer_possible_value.get_name();
-            let config: Config = serde_json::from_slice(&std::fs::read(
-                PathBuf::from("benchmarks")
-                    .join(config_name)
-                    .join("config.json"),
-            )?)?;
+            let config: Config =
+                serde_json::from_slice(&std::fs::read(get_config_path(config_name))?)?;
 
             for benchmark in &config.benchmarks {
                 for (command_index, command) in benchmark.commands.iter().enumerate() {
                     // run: "{benchmark.executable} {command.args}"
-                    // generate trace file at "benchmarks/{folder}/traces/{tracer}/{benchmark.name}-{command_index}.log"
-                    let dir = PathBuf::from("benchmarks")
-                        .join(config_name)
-                        .join("traces")
-                        .join(tracer_name);
+                    // generate trace file at "{trace_dir}/{benchmark.name}-{command_index}.log"
+                    let dir = get_trace_dir(config_name, tracer_name);
                     std::fs::create_dir_all(&dir)?;
 
                     let trace_file = dir.join(format!("{}-{}.log", benchmark.name, command_index));
@@ -212,10 +209,7 @@ fn main() -> anyhow::Result<()> {
                     }
 
                     // generate trace file symlink at "benchmarks/{folder}/traces/final/{benchmark.name}-{command_index}.log"
-                    let dir = PathBuf::from("benchmarks")
-                        .join(config_name)
-                        .join("traces")
-                        .join("final");
+                    let dir = get_trace_dir(config_name, "final");
                     std::fs::create_dir_all(&dir)?;
                     let trace_file_relative = PathBuf::from("..")
                         .join(tracer_name)
@@ -235,27 +229,14 @@ fn main() -> anyhow::Result<()> {
             tracer,
             config_name,
         } => {
-            let tracer_name = match tracer {
-                Some(tracer) => {
-                    let tracer_possible_value = tracer.to_possible_value().unwrap();
-                    let tracer_name = tracer_possible_value.get_name();
-                    tracer_name.to_string()
-                }
-                None => "final".to_string(),
-            };
-            let config: Config = serde_json::from_slice(&std::fs::read(
-                PathBuf::from("benchmarks")
-                    .join(config_name)
-                    .join("config.json"),
-            )?)?;
+            let tracer_name = get_tracer_name(tracer);
+            let config: Config =
+                serde_json::from_slice(&std::fs::read(get_config_path(config_name))?)?;
 
             for benchmark in &config.benchmarks {
                 for (command_index, _command) in benchmark.commands.iter().enumerate() {
-                    // trace file at "benchmarks/{folder}/traces/{tracer}/{benchmark.name}-{command_index}.log"
-                    let dir = PathBuf::from("benchmarks")
-                        .join(config_name)
-                        .join("traces")
-                        .join(&tracer_name);
+                    // trace file at "{trace_dir}/{benchmark.name}-{command_index}.log"
+                    let dir = get_trace_dir(config_name, &tracer_name);
                     std::fs::create_dir_all(&dir)?;
 
                     let trace_file = dir.join(format!("{}-{}.log", benchmark.name, command_index));
@@ -280,36 +261,21 @@ fn main() -> anyhow::Result<()> {
             config_name,
             size,
         } => {
-            let tracer_name = match tracer {
-                Some(tracer) => {
-                    let tracer_possible_value = tracer.to_possible_value().unwrap();
-                    let tracer_name = tracer_possible_value.get_name();
-                    tracer_name.to_string()
-                }
-                None => "final".to_string(),
-            };
-            let config: Config = serde_json::from_slice(&std::fs::read(
-                PathBuf::from("benchmarks")
-                    .join(config_name)
-                    .join("config.json"),
-            )?)?;
+            let tracer_name = get_tracer_name(tracer);
+            let config: Config =
+                serde_json::from_slice(&std::fs::read(get_config_path(config_name))?)?;
 
             for benchmark in &config.benchmarks {
                 for (command_index, _command) in benchmark.commands.iter().enumerate() {
-                    // trace file at "benchmarks/{folder}/traces/{tracer}/{benchmark.name}-{command_index}.log"
-                    let dir = PathBuf::from("benchmarks")
-                        .join(config_name)
-                        .join("traces")
-                        .join(&tracer_name);
+                    // trace file at "{trace_dir}/{benchmark.name}-{command_index}.log"
+                    let dir = get_trace_dir(config_name, &tracer_name);
                     std::fs::create_dir_all(&dir)?;
 
                     let trace_file = dir.join(format!("{}-{}.log", benchmark.name, command_index));
                     println!("Running SimPoint on {}", trace_file.display());
 
-                    // output prefix: "benchmarks/{folder}/simpoint/{benchmark.name}-{command_index}"
-                    let dir = PathBuf::from("benchmarks")
-                        .join(config_name)
-                        .join("simpoint");
+                    // output prefix: "{simpoint_dir}/{benchmark.name}-{command_index}"
+                    let dir = get_simpoint_dir(config_name);
                     std::fs::create_dir_all(&dir)?;
                     let output_prefix = dir.join(format!("{}-{}", benchmark.name, command_index));
 
@@ -333,18 +299,13 @@ fn main() -> anyhow::Result<()> {
             config_name,
             predictor,
         } => {
-            let config: Config = serde_json::from_slice(&std::fs::read(
-                PathBuf::from("benchmarks")
-                    .join(config_name)
-                    .join("config.json"),
-            )?)?;
+            let config: Config =
+                serde_json::from_slice(&std::fs::read(get_config_path(config_name))?)?;
 
             for benchmark in &config.benchmarks {
                 for (command_index, _command) in benchmark.commands.iter().enumerate() {
-                    // simpoint result at "benchmarks/{folder}/simpoint/{benchmark.name}-{command_index}.json"
-                    let dir = PathBuf::from("benchmarks")
-                        .join(config_name)
-                        .join("simpoint");
+                    // simpoint result at "{simpoint_dir}/{benchmark.name}-{command_index}.json"
+                    let dir = get_simpoint_dir(config_name);
 
                     let simpoint_result_path =
                         dir.join(format!("{}-{}.json", benchmark.name, command_index));
@@ -356,30 +317,25 @@ fn main() -> anyhow::Result<()> {
                     let simpoint_config: SimPointResult =
                         serde_json::from_reader(File::open(&simpoint_result_path)?)?;
 
-                    // simulation result under "benchmarks/{folder}/simulate/{datetime}-{config_name}/"
-                    let dir = PathBuf::from("benchmarks")
-                        .join(config_name)
-                        .join("simulate")
-                        .join(format!(
-                            "{}-{}",
-                            Local::now().format("%Y%m%d-%H%M%S"),
-                            config_name.display()
-                        ));
+                    // simulation result under "{simulate_dir}/"
+                    let dir = get_simulate_dir(
+                        config_name,
+                        &Local::now().format("%Y%m%d-%H%M%S").to_string(),
+                        &predictor,
+                    );
                     create_dir_all(&dir)?;
 
                     // simulate on each simpoint phase
                     for (simpoint_index, _phase) in simpoint_config.phases.iter().enumerate() {
-                        // trace file at "benchmarks/{folder}/simpoint/{benchmark.name}-{command_index}-simpoint-{simpoint_index}.log"
-                        let trace_dir = PathBuf::from("benchmarks")
-                            .join(config_name)
-                            .join("simpoint");
+                        // trace file at "{simpoint_dir}/{benchmark.name}-{command_index}-simpoint-{simpoint_index}.log"
+                        let trace_dir = get_simpoint_dir(config_name);
 
                         let trace_file = trace_dir.join(format!(
                             "{}-{}-simpoint-{}.log",
                             benchmark.name, command_index, simpoint_index
                         ));
 
-                        // simulation result at "benchmarks/{folder}/simulate/{datetime}-{config_name}/{benchmark.name}-{command_index}-simpoint-{simpoint_index}.json"
+                        // simulation result at "{simulate_dir}/{benchmark.name}-{command_index}-simpoint-{simpoint_index}.json"
                         let output_file = dir.join(format!(
                             "{}-{}-simpoint-{}.log",
                             benchmark.name, command_index, simpoint_index
