@@ -197,6 +197,7 @@ fn main() -> anyhow::Result<()> {
     ]);
     print_stdout(table)?;
 
+    // reproduction of paper "Branch Prediction Is Not A Solved Problem: Measurements, Opportunities, and Future Directions"
     // find hard to predict branches:
     // 1. less than 99% prediction accuracy
     // 2. execute at least 15000 times per 30M instructions
