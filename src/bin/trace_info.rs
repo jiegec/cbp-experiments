@@ -145,6 +145,7 @@ fn main() -> anyhow::Result<()> {
                 info.taken_count as f64 * 100.0 / info.execution_count as f64
             )
             .cell(),
+            file.get_addr_location(branch.inst_addr)?.cell(),
         ]);
     }
     let table = table.table().title(vec![
@@ -152,6 +153,7 @@ fn main() -> anyhow::Result<()> {
         "Branch Type".cell(),
         "Execution Count".cell(),
         "Taken Rate (%)".cell(),
+        "Image & Offset".cell(),
     ]);
     print_stdout(table)?;
 

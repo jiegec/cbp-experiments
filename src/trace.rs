@@ -169,6 +169,20 @@ impl<'a> TraceFileDecoder<'a> {
     pub fn entries(&self) -> anyhow::Result<TraceEntryIterator<'a>> {
         TraceEntryIterator::from(self)
     }
+
+    // find corresponding image & offset
+    pub fn get_addr_location(&self, addr: u64) -> anyhow::Result<String> {
+        for image in self.images {
+            if addr >= image.start && addr < image.start + image.len {
+                return Ok(format!(
+                    "{}:0x{:x}",
+                    image.get_filename()?,
+                    addr - image.start
+                ));
+            }
+        }
+        Ok(format!("unknown:0x{:x}", addr))
+    }
 }
 
 const BUFFER_SIZE: usize = 16384;
