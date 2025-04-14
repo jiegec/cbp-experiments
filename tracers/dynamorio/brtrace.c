@@ -59,10 +59,12 @@ static char log_file_name[256] = "brtrace.log";
 struct tls {
   file_t log;
   struct branch brs[MAX_BRS];
+  struct image images[MAX_IMAGES];
   struct hashmap_s br_map;
 
-  uint64_t num_brs;
   uint64_t num_entries;
+  uint64_t num_brs;
+  uint64_t num_images;
 
   struct entry write_buffer[BUFFER_SIZE];
   int buffer_size;
@@ -218,8 +220,9 @@ static void event_thread_init(void *drcontext) {
   DR_ASSERT(log != INVALID_FILE);
   struct tls *t = (struct tls *)malloc(sizeof(struct tls));
   t->log = log;
-  t->num_brs = 0;
   t->num_entries = 0;
+  t->num_brs = 0;
+  t->num_images = 0;
   struct hashmap_create_options_s options;
   memset(&options, 0, sizeof(options));
   options.initial_capacity = 16384;
@@ -259,10 +262,13 @@ static void event_thread_exit(void *drcontext) {
 
   // write branches
   dr_write_file(t->log, t->brs, sizeof(struct branch) * t->num_brs);
+  // write images
+  dr_write_file(t->log, t->images, sizeof(struct image) * t->num_images);
 
-  // write number of branches & number of events
-  dr_write_file(t->log, &t->num_brs, sizeof(t->num_brs));
+  // write number of entries/branches/images
   dr_write_file(t->log, &t->num_entries, sizeof(t->num_entries));
+  dr_write_file(t->log, &t->num_brs, sizeof(t->num_brs));
+  dr_write_file(t->log, &t->num_images, sizeof(t->num_images));
   dr_close_file(t->log);
   fprintf(stderr, "Finished writing log\n");
 }
@@ -277,6 +283,22 @@ static void event_exit(void) {
       !drmgr_unregister_tls_field(tls_idx))
     DR_ASSERT(false);
   drmgr_exit();
+}
+
+static void event_module_load(void *drcontext, const module_data_t *info,
+                              bool loaded) {
+  struct tls *t = (struct tls *)drmgr_get_tls_field(drcontext, tls_idx);
+  assert(t);
+
+  struct image new_image;
+  new_image.start = (uint64_t)info->start;
+  new_image.len = (uint64_t)info->end - (uint64_t)info->start;
+  fprintf(stderr, "Image %s loaded at 0x%lx\n", info->full_path, info->start);
+  snprintf(new_image.filename, sizeof(new_image.filename), "%s",
+           info->full_path);
+
+  assert(t->num_images < MAX_IMAGES);
+  t->images[t->num_images++] = new_image;
 }
 
 DR_EXPORT
@@ -295,7 +317,8 @@ void dr_client_main(client_id_t id, int argc, const char *argv[]) {
   tls_idx = drmgr_register_tls_field();
 
   dr_register_exit_event(event_exit);
-  if (!drmgr_register_thread_init_event(event_thread_init) ||
+  if (!drmgr_register_module_load_event(event_module_load) ||
+      !drmgr_register_thread_init_event(event_thread_init) ||
       !drmgr_register_thread_exit_event(event_thread_exit) ||
       !drmgr_register_bb_instrumentation_event(NULL, event_app_instruction,
                                                NULL))

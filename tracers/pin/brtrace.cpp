@@ -8,11 +8,13 @@
 
 // based on pin manual examples
 
-FILE *trace;
-struct branch brs[MAX_BRS];
-std::map<struct branch, int> br_map;
-uint64_t num_brs;
-uint64_t num_entries;
+static FILE *trace = NULL;
+static struct branch brs[MAX_BRS];
+static struct image images[MAX_IMAGES];
+static std::map<struct branch, int> br_map;
+static uint64_t num_entries = 0;
+static uint64_t num_brs = 0;
+static uint64_t num_images = 0;
 
 bool operator<(const struct branch &a, const struct branch &b) {
   if (a.inst_addr != b.inst_addr) {
@@ -125,10 +127,13 @@ VOID Fini(INT32 code, VOID *v) {
 
   // write branches
   assert(fwrite(brs, sizeof(struct branch), num_brs, trace) == num_brs);
+  // write images
+  assert(fwrite(images, sizeof(struct image), num_images, trace) == num_images);
 
-  // write number of branches & number of events
-  assert(fwrite(&num_brs, sizeof(num_brs), 1, trace) == 1);
+  // write number of entries/branches/images
   assert(fwrite(&num_entries, sizeof(num_entries), 1, trace) == 1);
+  assert(fwrite(&num_brs, sizeof(num_brs), 1, trace) == 1);
+  assert(fwrite(&num_images, sizeof(num_images), 1, trace) == 1);
   fclose(trace);
   fprintf(stderr, "Finished writing log\n");
 }
@@ -139,11 +144,25 @@ INT32 Usage() {
   return -1;
 }
 
+void ImageLoad(IMG img, void *v) {
+  struct image new_image;
+  new_image.start = IMG_LowAddress(img);
+  new_image.len = IMG_SizeMapped(img);
+  fprintf(stderr, "Image %s loaded at 0x%lx\n", IMG_Name(img).c_str(),
+          IMG_LowAddress(img));
+  snprintf(new_image.filename, sizeof(new_image.filename), "%s",
+           IMG_Name(img).c_str());
+
+  assert(num_images < MAX_IMAGES);
+  images[num_images++] = new_image;
+}
+
 int main(int argc, char *argv[]) {
   // Initialize pin
   if (PIN_Init(argc, argv))
     return Usage();
 
+  // Prepare output file
   trace = fopen(KnobOutputFile.Value().c_str(), "w");
 
   zstd_cctx = ZSTD_createCCtx();
@@ -151,6 +170,9 @@ int main(int argc, char *argv[]) {
   zstd_output_buffer_size = ZSTD_CStreamOutSize();
   zstd_output_buffer = malloc(zstd_output_buffer_size);
   assert(zstd_output_buffer);
+
+  // Register image load callbacks
+  IMG_AddInstrumentFunction(ImageLoad, 0);
 
   // Register Instruction to be called to instrument instructions
   INS_AddInstrumentFunction(Instruction, 0);

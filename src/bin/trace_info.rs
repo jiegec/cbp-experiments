@@ -33,9 +33,18 @@ fn main() -> anyhow::Result<()> {
     // parse trace file
     let file = TraceFileDecoder::open(&content);
     println!(
-        "Got {} branches and {} entries",
-        file.num_brs, file.num_entries
+        "Got {} branches, {} entries and {} images",
+        file.num_brs, file.num_entries, file.num_images
     );
+
+    println!("Loaded images:");
+    for image in file.images.iter() {
+        println!(
+            "Image {} loaded to 0x{:x}",
+            image.get_filename()?,
+            image.start
+        );
+    }
 
     let mut branch_type_counts = [0usize; BranchType::Invalid.repr as usize];
     for branch in file.branches {

@@ -19,6 +19,25 @@ pub struct Branch {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub struct Image {
+    pub start: u64,
+    pub len: u64,
+    pub filename: [u8; 256],
+}
+
+impl Image {
+    pub fn get_filename(&self) -> anyhow::Result<String> {
+        let len = self
+            .filename
+            .iter()
+            .position(|ch| *ch == 0)
+            .unwrap_or(self.filename.len());
+        Ok(String::from_utf8(Vec::from(&self.filename[0..len]))?)
+    }
+}
+
+#[repr(C)]
 #[derive(Default, Clone, Copy)]
 pub struct Entry(pub u32);
 
@@ -96,23 +115,38 @@ pub struct TraceFileDecoder<'a> {
     pub content: &'a [u8],
 
     // parse content
-    pub num_brs: usize,
     pub num_entries: usize,
+    pub num_brs: usize,
+    pub num_images: usize,
     pub branches: &'a [Branch],
+    pub images: &'a [Image],
 }
 
 impl<'a> TraceFileDecoder<'a> {
     pub fn open(content: &'a [u8]) -> TraceFileDecoder<'a> {
-        // read num_brs
+        // read nums
         let mut tmp_u64 = [0u8; 8];
+        tmp_u64.copy_from_slice(&content[content.len() - 8..content.len()]);
+        let num_images = u64::from_le_bytes(tmp_u64) as usize;
         tmp_u64.copy_from_slice(&content[content.len() - 16..content.len() - 8]);
         let num_brs = u64::from_le_bytes(tmp_u64) as usize;
-        tmp_u64.copy_from_slice(&content[content.len() - 8..content.len()]);
+        tmp_u64.copy_from_slice(&content[content.len() - 24..content.len() - 16]);
         let num_entries = u64::from_le_bytes(tmp_u64) as usize;
+
+        let images: &[Image] = unsafe {
+            std::slice::from_raw_parts(
+                &content[content.len() - 24 - std::mem::size_of::<Image>() * num_images]
+                    as *const u8 as *const Image,
+                num_images,
+            )
+        };
 
         let branches: &[Branch] = unsafe {
             std::slice::from_raw_parts(
-                &content[content.len() - 16 - std::mem::size_of::<Branch>() * num_brs] as *const u8
+                &content[content.len()
+                    - 24
+                    - std::mem::size_of::<Image>() * num_images
+                    - std::mem::size_of::<Branch>() * num_brs] as *const u8
                     as *const Branch,
                 num_brs,
             )
@@ -120,9 +154,11 @@ impl<'a> TraceFileDecoder<'a> {
 
         Self {
             content,
-            num_brs,
             num_entries,
+            num_brs,
+            num_images,
             branches,
+            images,
         }
     }
 
@@ -141,6 +177,7 @@ pub struct TraceFileEncoder<'a> {
     // content
     pub num_entries: usize,
     pub branches: Vec<Branch>,
+    pub images: Vec<Image>,
 
     // maintain mapping from (inst_addr, targ_addr) to branch index
     pub mapping: HashMap<(u64, u64), usize>,
@@ -160,6 +197,7 @@ impl<'a> TraceFileEncoder<'a> {
             mapping: HashMap::new(),
             buffer: [Entry::default(); BUFFER_SIZE],
             buffer_size: 0,
+            images: vec![],
         })
     }
 
@@ -230,6 +268,7 @@ impl<'a> TraceFileEncoder<'a> {
         }
 
         let mut writer = self.encoder.finish()?;
+
         // write branches
         writer.write_all(unsafe {
             std::slice::from_raw_parts(
@@ -238,7 +277,23 @@ impl<'a> TraceFileEncoder<'a> {
             )
         })?;
 
-        // write num_brs and num_entries
+        // write images
+        writer.write_all(unsafe {
+            std::slice::from_raw_parts(
+                self.images.as_ptr() as *const u8,
+                self.images.len() * std::mem::size_of::<Image>(),
+            )
+        })?;
+
+        // write numbers
+        let val_u64 = self.num_entries as u64;
+        writer.write_all(unsafe {
+            std::slice::from_raw_parts(
+                &val_u64 as *const u64 as *const u8,
+                std::mem::size_of::<u64>(),
+            )
+        })?;
+
         let val_u64 = self.branches.len() as u64;
         writer.write_all(unsafe {
             std::slice::from_raw_parts(
@@ -247,13 +302,14 @@ impl<'a> TraceFileEncoder<'a> {
             )
         })?;
 
-        let val_u64 = self.num_entries as u64;
+        let val_u64 = self.images.len() as u64;
         writer.write_all(unsafe {
             std::slice::from_raw_parts(
                 &val_u64 as *const u64 as *const u8,
                 std::mem::size_of::<u64>(),
             )
         })?;
+
         writer.flush()?;
         Ok(())
     }

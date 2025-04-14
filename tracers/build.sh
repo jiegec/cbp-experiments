@@ -1,5 +1,5 @@
 #!/bin/bash
-set -x
+set -e -x
 pushd dynamorio
 mkdir -p build
 cd build

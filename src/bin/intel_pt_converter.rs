@@ -7,7 +7,7 @@ use capstone::{
     },
     prelude::*,
 };
-use cbp_experiments::{BranchType, TraceFileEncoder, get_tqdm_style};
+use cbp_experiments::{BranchType, Image, TraceFileEncoder, get_tqdm_style};
 use clap::Parser;
 use indicatif::ProgressBar;
 use memmap::{Mmap, MmapOptions};
@@ -235,16 +235,19 @@ impl BranchInfo {
     }
 }
 
-pub struct IntelPTIterator {
+pub struct IntelPTIterator<'a> {
     content: Mmap,
     pbar: ProgressBar,
     offset: usize,
     data_begin: usize,
     data_end: usize,
     packets: VecDeque<Packet>,
+
+    // collect mmaped files on the fly
+    images: &'a mut Vec<Image>,
 }
 
-impl Iterator for IntelPTIterator {
+impl<'a> Iterator for IntelPTIterator<'a> {
     type Item = Packet;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -265,6 +268,9 @@ impl Iterator for IntelPTIterator {
 
             if event_type == 71 {
                 // PERF_RECORD_AUXTRACE
+                // see struct perf_record_auxtrace in linux kernel
+                // 8 byte header
+                // 8 byte size
                 tmp_u64.copy_from_slice(&self.content[self.offset + 8..self.offset + 16]);
                 let data_size = u64::from_le_bytes(tmp_u64) as usize;
                 let data = &self.content[self.offset + event_size as usize
@@ -276,6 +282,29 @@ impl Iterator for IntelPTIterator {
                 // );
                 self.packets.extend(parse_intel_pt_packets(data));
                 self.offset += data_size;
+            } else if event_type == 10 {
+                // PERF_RECORD_MMAP2
+                // see struct perf_record_mmap2 in linux kernel
+                // 8 byte header
+                // 4 byte pid
+                // 4 byte tid
+                // 8 byte start @ 0x10
+                tmp_u64.copy_from_slice(&self.content[self.offset + 16..self.offset + 24]);
+                let start = u64::from_le_bytes(tmp_u64);
+                // 8 byte len @ 0x18
+                tmp_u64.copy_from_slice(&self.content[self.offset + 24..self.offset + 32]);
+                let len = u64::from_le_bytes(tmp_u64);
+                // 8 byte offset @ 0x20
+                tmp_u64.copy_from_slice(&self.content[self.offset + 32..self.offset + 40]);
+                let offset = u64::from_le_bytes(tmp_u64);
+                // read 256 bytes from filename field @ 0x48
+                let mut filename = [0u8; 256];
+                filename.copy_from_slice(&self.content[self.offset + 72..self.offset + 328]);
+                self.images.push(Image {
+                    start: start - offset,
+                    len: len + offset,
+                    filename,
+                });
             }
             self.offset += event_size as usize;
 
@@ -290,8 +319,8 @@ impl Iterator for IntelPTIterator {
     }
 }
 
-impl IntelPTIterator {
-    pub fn from<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
+impl<'a> IntelPTIterator<'a> {
+    pub fn from<P: AsRef<Path>>(path: P, images: &'a mut Vec<Image>) -> anyhow::Result<Self> {
         let file = File::open(path)?;
         let content = unsafe { MmapOptions::new().map(&file)? };
 
@@ -313,6 +342,8 @@ impl IntelPTIterator {
         let pbar = indicatif::ProgressBar::new(data_section_size as u64);
         pbar.set_style(get_tqdm_style());
 
+        images.clear();
+
         Ok(Self {
             content,
             pbar,
@@ -320,6 +351,7 @@ impl IntelPTIterator {
             data_begin: data_section_offset,
             data_end: data_section_offset + data_section_size,
             packets: VecDeque::new(),
+            images,
         })
     }
 }
@@ -511,7 +543,8 @@ fn main() -> anyhow::Result<()> {
             )
         };
 
-    for packet in IntelPTIterator::from(args.trace_path)? {
+    let mut images = vec![];
+    for packet in IntelPTIterator::from(args.trace_path, &mut images)? {
         match packet {
             Packet::TNT(tnt) => {
                 for bit in (tnt.new_bit..=tnt.old_bit).rev() {
@@ -670,11 +703,14 @@ fn main() -> anyhow::Result<()> {
             }
         }
     }
+    // collect images
+    output_trace.images = images;
 
     println!(
-        "Got {} branches and {} entries in output trace",
+        "Got {} branches, {} entries and {} images in output trace",
         output_trace.branches.len(),
         output_trace.num_entries,
+        output_trace.images.len()
     );
     output_trace.finish()?;
 

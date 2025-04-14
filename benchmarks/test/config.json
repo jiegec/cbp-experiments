@@ -1,0 +1,15 @@
+{
+    "benchmarks": [{
+        "name": "ls",
+        "executable": "/bin/ls",
+        "commands": [{
+            "args": "."
+        }]
+    }, {
+        "name": "cat",
+        "executable": "/usr/bin/cat",
+        "commands": [{
+            "args": "/proc/self/maps"
+        }]
+    }]
+}
