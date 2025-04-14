@@ -161,6 +161,7 @@ fn main() -> anyhow::Result<()> {
             info.branch.branch_type == BranchType::ConditionalDirectJump && info.execution_count > 0
         })
         .count();
+    let total_br_execution_count: u64 = branch_info.iter().map(|info| info.execution_count).sum();
     let total_cond_execution_count: u64 = branch_info
         .iter()
         .filter(|info| info.branch.branch_type == BranchType::ConditionalDirectJump)
@@ -181,7 +182,11 @@ fn main() -> anyhow::Result<()> {
         cmpki, total_mispred_count, total_instructions
     );
     println!(
-        "- Executed conditional branches: {}",
+        "- Runtime executions of branches: {}",
+        total_br_execution_count,
+    );
+    println!(
+        "- Runtime executions of conditional branches: {}",
         total_cond_execution_count,
     );
     let cond_branch_prediction_accuracy =
@@ -200,6 +205,7 @@ fn main() -> anyhow::Result<()> {
         simulate: total_instructions,
         branch_info,
         total_mispred_count,
+        total_br_execution_count,
         total_cond_execution_count,
         cmpki,
         cond_branch_prediction_accuracy,

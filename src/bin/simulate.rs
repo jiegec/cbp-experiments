@@ -1,6 +1,6 @@
 //! Test branch prediction accuracy
 use cbp_experiments::{
-    create_inst_index_mapping, get_inst_index, get_tqdm_style, Branch, BranchType, TraceFileDecoder
+    Branch, BranchType, TraceFileDecoder, create_inst_index_mapping, get_inst_index, get_tqdm_style,
 };
 use cbp_experiments::{SimulateResult, SimulateResultBranchInfo, new_predictor};
 use clap::Parser;
@@ -241,6 +241,11 @@ fn main() -> anyhow::Result<()> {
 
     println!("Overall statistics (H2P branches means hard to predict conditional branches):");
     // compute mpki
+    let total_br_execution_count: u64 = branch_infos
+        .iter()
+        .zip(file.branches)
+        .map(|(info, _)| info.execution_count)
+        .sum();
     let total_cond_execution_count: u64 = branch_infos
         .iter()
         .zip(file.branches)
@@ -266,7 +271,11 @@ fn main() -> anyhow::Result<()> {
         cmpki, total_mispred_count, args.simulate
     );
     println!(
-        "- Executed conditional branches: {}",
+        "- Runtime executions of branches: {}",
+        total_br_execution_count,
+    );
+    println!(
+        "- Runtime executions of conditional branches: {}",
         total_cond_execution_count,
     );
     let cond_branch_prediction_accuracy =
@@ -330,6 +339,7 @@ fn main() -> anyhow::Result<()> {
             simulate: args.simulate,
             branch_info: vec![],
             total_mispred_count,
+            total_br_execution_count,
             total_cond_execution_count,
             cmpki,
             cond_branch_prediction_accuracy,

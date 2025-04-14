@@ -28,7 +28,9 @@ pub struct SimulateResult {
     /// overall statistics
     /// number of conditional branch mispredictions
     pub total_mispred_count: u64,
-    /// number of conditional branches executions
+    /// number of branches runtime executions
+    pub total_br_execution_count: u64,
+    /// number of conditional branches runtime executions
     pub total_cond_execution_count: u64,
     /// conditional branch mispredictions per kilo instructions
     pub cmpki: f64,
