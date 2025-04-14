@@ -235,24 +235,28 @@ impl BranchInfo {
     }
 }
 
-pub struct IntelPTIterator<'a> {
+pub struct PerfDataIterator {
     content: Mmap,
     pbar: ProgressBar,
     offset: usize,
     data_begin: usize,
     data_end: usize,
-    packets: VecDeque<Packet>,
-
-    // collect mmaped files on the fly
-    images: &'a mut Vec<Image>,
 }
 
-impl<'a> Iterator for IntelPTIterator<'a> {
-    type Item = Packet;
+pub enum PerfDataEntry {
+    /// mmap-ed image
+    Image(Image),
+    /// Intel PT packet
+    IntelPT(Vec<Packet>),
+}
+
+impl Iterator for PerfDataIterator {
+    type Item = PerfDataEntry;
 
     fn next(&mut self) -> Option<Self::Item> {
         // scan for more packets
-        while self.packets.is_empty() && self.offset < self.data_end {
+
+        while self.offset < self.data_end {
             let mut tmp_u64 = [0u8; 8];
             let mut tmp_u32 = [0u8; 4];
             let mut tmp_u16 = [0u8; 2];
@@ -280,8 +284,8 @@ impl<'a> Iterator for IntelPTIterator<'a> {
                 //     self.offset + event_size as usize,
                 //     data_size
                 // );
-                self.packets.extend(parse_intel_pt_packets(data));
-                self.offset += data_size;
+                self.offset += event_size as usize + data_size;
+                return Some(PerfDataEntry::IntelPT(parse_intel_pt_packets(data)));
             } else if event_type == 10 {
                 // PERF_RECORD_MMAP2
                 // see struct perf_record_mmap2 in linux kernel
@@ -300,27 +304,28 @@ impl<'a> Iterator for IntelPTIterator<'a> {
                 // read 256 bytes from filename field @ 0x48
                 let mut filename = [0u8; 256];
                 filename.copy_from_slice(&self.content[self.offset + 72..self.offset + 328]);
-                self.images.push(Image {
+
+                self.offset += event_size as usize;
+                return Some(PerfDataEntry::Image(Image {
                     start: start - offset,
                     len: len + offset,
                     filename,
-                });
+                }));
+            } else {
+                // not interested
+                self.offset += event_size as usize;
             }
-            self.offset += event_size as usize;
 
             self.pbar
                 .set_position((self.offset - self.data_begin) as u64);
         }
 
-        if let Some(packet) = self.packets.pop_front() {
-            return Some(packet);
-        }
         None
     }
 }
 
-impl<'a> IntelPTIterator<'a> {
-    pub fn from<P: AsRef<Path>>(path: P, images: &'a mut Vec<Image>) -> anyhow::Result<Self> {
+impl PerfDataIterator {
+    pub fn from<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
         let file = File::open(path)?;
         let content = unsafe { MmapOptions::new().map(&file)? };
 
@@ -342,16 +347,12 @@ impl<'a> IntelPTIterator<'a> {
         let pbar = indicatif::ProgressBar::new(data_section_size as u64);
         pbar.set_style(get_tqdm_style());
 
-        images.clear();
-
         Ok(Self {
             content,
             pbar,
             offset: data_section_offset,
             data_begin: data_section_offset,
             data_end: data_section_offset + data_section_size,
-            packets: VecDeque::new(),
-            images,
         })
     }
 }
@@ -544,168 +545,184 @@ fn main() -> anyhow::Result<()> {
             )
         };
 
-    let mut images = vec![];
-    for packet in IntelPTIterator::from(args.trace_path, &mut images)? {
-        match packet {
-            Packet::TNT(tnt) => {
-                for bit in (tnt.new_bit..=tnt.old_bit).rev() {
-                    let taken = ((tnt.bits[(bit / 8) as usize] >> (bit % 8)) & 1) != 0;
-
-                    // loop until we found the conditional branch
-                    loop {
-                        let branch = &branches[branch_index];
-
-                        match branch.branch_type {
-                            BranchType::ConditionalDirectJump => {
-                                record_direct(
-                                    &mut output_trace,
-                                    branch,
-                                    &mut output_branch_indices[branch_index],
-                                    taken,
-                                )?;
-
-                                if taken {
-                                    // taken path
-                                    branch_index = branch.targ_addr_branch_index.unwrap();
-                                } else {
-                                    // not taken path
-                                    branch_index += 1;
-                                }
-                                break;
-                            }
-                            BranchType::Return => {
-                                // ret compression: if the target address of ret matches the call,
-                                // it is stored as a taken bit in TNT packet
-                                assert!(taken);
-                                let (target_ip, target_branch_index) =
-                                    call_stack.pop_back().unwrap();
-
-                                record_indirect(&mut output_trace, branch, target_ip)?;
-
-                                // go to target address
-                                branch_index = target_branch_index;
-
-                                break;
-                            }
-                            BranchType::DirectCall => {
-                                // add to call stack
-                                // branch_index+1: the first branch on the fallthrough path
-                                call_stack.push_back((branch.fall_addr(), branch_index + 1));
-                                // handle call stack overflow
-                                while call_stack.len() > 64 {
-                                    call_stack.pop_front();
-                                }
-
-                                record_direct(
-                                    &mut output_trace,
-                                    branch,
-                                    &mut output_branch_indices[branch_index],
-                                    true,
-                                )?;
-
-                                // go to target address
-                                branch_index = branch.targ_addr_branch_index.unwrap();
-                            }
-                            BranchType::DirectJump => {
-                                record_direct(
-                                    &mut output_trace,
-                                    branch,
-                                    &mut output_branch_indices[branch_index],
-                                    true,
-                                )?;
-
-                                // go to target address
-                                branch_index = branch.targ_addr_branch_index.unwrap();
-                            }
-                            _ => unimplemented!(
-                                "Unhandled branch {:x?} when handling packet {:x?}",
-                                branch,
-                                tnt
-                            ),
-                        }
-                    }
-                }
+    for entry in PerfDataIterator::from(args.trace_path)? {
+        match entry {
+            PerfDataEntry::Image(image) => {
+                // collect images
+                println!(
+                    "Found image {} loaded at 0x{:x}",
+                    image.get_filename()?,
+                    image.start
+                );
+                output_trace.images.push(image);
             }
-            Packet::TIP(tip) => {
-                // wait until we found the indirect branch
-                loop {
-                    let branch = &branches[branch_index];
+            PerfDataEntry::IntelPT(packets) => {
+                for packet in packets {
+                    match packet {
+                        Packet::TNT(tnt) => {
+                            for bit in (tnt.new_bit..=tnt.old_bit).rev() {
+                                let taken = ((tnt.bits[(bit / 8) as usize] >> (bit % 8)) & 1) != 0;
 
-                    match branch.branch_type {
-                        BranchType::Return => {
-                            record_indirect(&mut output_trace, branch, tip.target_ip)?;
+                                // loop until we found the conditional branch
+                                loop {
+                                    let branch = &branches[branch_index];
 
-                            // find branch @ target address
-                            branch_index = find_branch_by_pc(&branches, tip.target_ip);
+                                    match branch.branch_type {
+                                        BranchType::ConditionalDirectJump => {
+                                            record_direct(
+                                                &mut output_trace,
+                                                branch,
+                                                &mut output_branch_indices[branch_index],
+                                                taken,
+                                            )?;
 
-                            // maintain call stack
-                            call_stack.pop_front();
-                            break;
-                        }
-                        BranchType::DirectCall => {
-                            record_direct(
-                                &mut output_trace,
-                                branch,
-                                &mut output_branch_indices[branch_index],
-                                true,
-                            )?;
+                                            if taken {
+                                                // taken path
+                                                branch_index =
+                                                    branch.targ_addr_branch_index.unwrap();
+                                            } else {
+                                                // not taken path
+                                                branch_index += 1;
+                                            }
+                                            break;
+                                        }
+                                        BranchType::Return => {
+                                            // ret compression: if the target address of ret matches the call,
+                                            // it is stored as a taken bit in TNT packet
+                                            assert!(taken);
+                                            let (target_ip, target_branch_index) =
+                                                call_stack.pop_back().unwrap();
 
-                            // add to call stack
-                            // branch_index+1: the first branch on the fallthrough path
-                            call_stack.push_back((branch.fall_addr(), branch_index + 1));
-                            // handle call stack overflow
-                            while call_stack.len() > 64 {
-                                call_stack.pop_front();
+                                            record_indirect(&mut output_trace, branch, target_ip)?;
+
+                                            // go to target address
+                                            branch_index = target_branch_index;
+
+                                            break;
+                                        }
+                                        BranchType::DirectCall => {
+                                            // add to call stack
+                                            // branch_index+1: the first branch on the fallthrough path
+                                            call_stack
+                                                .push_back((branch.fall_addr(), branch_index + 1));
+                                            // handle call stack overflow
+                                            while call_stack.len() > 64 {
+                                                call_stack.pop_front();
+                                            }
+
+                                            record_direct(
+                                                &mut output_trace,
+                                                branch,
+                                                &mut output_branch_indices[branch_index],
+                                                true,
+                                            )?;
+
+                                            // go to target address
+                                            branch_index = branch.targ_addr_branch_index.unwrap();
+                                        }
+                                        BranchType::DirectJump => {
+                                            record_direct(
+                                                &mut output_trace,
+                                                branch,
+                                                &mut output_branch_indices[branch_index],
+                                                true,
+                                            )?;
+
+                                            // go to target address
+                                            branch_index = branch.targ_addr_branch_index.unwrap();
+                                        }
+                                        _ => unimplemented!(
+                                            "Unhandled branch {:x?} when handling packet {:x?}",
+                                            branch,
+                                            tnt
+                                        ),
+                                    }
+                                }
                             }
-
-                            // go to target address
-                            branch_index = branch.targ_addr_branch_index.unwrap();
                         }
-                        BranchType::IndirectCall => {
-                            record_indirect(&mut output_trace, branch, tip.target_ip)?;
+                        Packet::TIP(tip) => {
+                            // wait until we found the indirect branch
+                            loop {
+                                let branch = &branches[branch_index];
 
-                            // add to call stack
-                            // branch_index+1: the first branch on the fallthrough path
-                            call_stack.push_back((branch.fall_addr(), branch_index + 1));
-                            // handle call stack overflow
-                            while call_stack.len() > 64 {
-                                call_stack.pop_front();
+                                match branch.branch_type {
+                                    BranchType::Return => {
+                                        record_indirect(&mut output_trace, branch, tip.target_ip)?;
+
+                                        // find branch @ target address
+                                        branch_index = find_branch_by_pc(&branches, tip.target_ip);
+
+                                        // maintain call stack
+                                        call_stack.pop_front();
+                                        break;
+                                    }
+                                    BranchType::DirectCall => {
+                                        record_direct(
+                                            &mut output_trace,
+                                            branch,
+                                            &mut output_branch_indices[branch_index],
+                                            true,
+                                        )?;
+
+                                        // add to call stack
+                                        // branch_index+1: the first branch on the fallthrough path
+                                        call_stack
+                                            .push_back((branch.fall_addr(), branch_index + 1));
+                                        // handle call stack overflow
+                                        while call_stack.len() > 64 {
+                                            call_stack.pop_front();
+                                        }
+
+                                        // go to target address
+                                        branch_index = branch.targ_addr_branch_index.unwrap();
+                                    }
+                                    BranchType::IndirectCall => {
+                                        record_indirect(&mut output_trace, branch, tip.target_ip)?;
+
+                                        // add to call stack
+                                        // branch_index+1: the first branch on the fallthrough path
+                                        call_stack
+                                            .push_back((branch.fall_addr(), branch_index + 1));
+                                        // handle call stack overflow
+                                        while call_stack.len() > 64 {
+                                            call_stack.pop_front();
+                                        }
+
+                                        // find branch @ target address
+                                        branch_index = find_branch_by_pc(&branches, tip.target_ip);
+                                        break;
+                                    }
+                                    BranchType::IndirectJump => {
+                                        record_indirect(&mut output_trace, branch, tip.target_ip)?;
+
+                                        // find branch @ target address
+                                        branch_index = find_branch_by_pc(&branches, tip.target_ip);
+                                        break;
+                                    }
+                                    BranchType::DirectJump => {
+                                        record_direct(
+                                            &mut output_trace,
+                                            branch,
+                                            &mut output_branch_indices[branch_index],
+                                            true,
+                                        )?;
+
+                                        // go to target address
+                                        branch_index = branch.targ_addr_branch_index.unwrap();
+                                    }
+                                    _ => unimplemented!(
+                                        "Unhandled branch {:x?} when handling packet {:x?}",
+                                        branch,
+                                        tip
+                                    ),
+                                }
                             }
-
-                            // find branch @ target address
-                            branch_index = find_branch_by_pc(&branches, tip.target_ip);
-                            break;
                         }
-                        BranchType::IndirectJump => {
-                            record_indirect(&mut output_trace, branch, tip.target_ip)?;
-
-                            // find branch @ target address
-                            branch_index = find_branch_by_pc(&branches, tip.target_ip);
-                            break;
-                        }
-                        BranchType::DirectJump => {
-                            record_direct(
-                                &mut output_trace,
-                                branch,
-                                &mut output_branch_indices[branch_index],
-                                true,
-                            )?;
-
-                            // go to target address
-                            branch_index = branch.targ_addr_branch_index.unwrap();
-                        }
-                        _ => unimplemented!(
-                            "Unhandled branch {:x?} when handling packet {:x?}",
-                            branch,
-                            tip
-                        ),
                     }
                 }
             }
         }
     }
-    // collect images
-    output_trace.images = images;
 
     println!(
         "Got {} branches, {} entries and {} images in output trace",
