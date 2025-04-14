@@ -14,7 +14,7 @@ pub fn get_tqdm_style() -> indicatif::ProgressStyle {
 }
 
 // create a mapping from instruction address to instruction index for instruction counting
-pub fn create_insn_index_mapping<P: AsRef<std::path::Path>>(
+pub fn create_inst_index_mapping<P: AsRef<std::path::Path>>(
     elf: P,
 ) -> anyhow::Result<HashMap<u64, u64>> {
     let cs = Capstone::new()
@@ -40,4 +40,19 @@ pub fn create_insn_index_mapping<P: AsRef<std::path::Path>>(
         }
     }
     Ok(mapping)
+}
+
+pub fn get_inst_index(mapping: &HashMap<u64, u64>, addr: u64) -> u64 {
+    match mapping.get(&addr) {
+        Some(index) => {
+            // found
+            *index
+        }
+        None => {
+            // for vdso: map them to a very large number
+            // so that we ignore instructions that reside in vdso
+            assert!(addr >= 0x7f000000000);
+            0xffffffff
+        }
+    }
 }

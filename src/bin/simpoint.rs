@@ -1,7 +1,7 @@
 //! Use SimPoint methodology to reduce trace length
 use cbp_experiments::{
-    SimPointPhase, SimPointResult, TraceFileDecoder, TraceFileEncoder, create_insn_index_mapping,
-    get_tqdm_style,
+    SimPointPhase, SimPointResult, TraceFileDecoder, TraceFileEncoder, create_inst_index_mapping,
+    get_inst_index, get_tqdm_style,
 };
 use clap::Parser;
 use indicatif::ProgressIterator;
@@ -103,14 +103,14 @@ fn main() -> anyhow::Result<()> {
     );
 
     // create a mapping from instruction address to instruction index for instruction counting
-    let mapping = create_insn_index_mapping(&args.exe_path)?;
+    let mapping = create_inst_index_mapping(&args.exe_path)?;
 
     let mut branch_infos = vec![BranchInfo::default(); file.num_brs];
 
     // preprocess instruction indices for all branches
     for (i, branch) in file.branches.iter().enumerate() {
-        branch_infos[i].inst_addr_index = *mapping.get(&branch.inst_addr).unwrap();
-        branch_infos[i].targ_addr_index = *mapping.get(&branch.targ_addr).unwrap();
+        branch_infos[i].inst_addr_index = get_inst_index(&mapping, branch.inst_addr);
+        branch_infos[i].targ_addr_index = get_inst_index(&mapping, branch.targ_addr);
     }
 
     let pbar = indicatif::ProgressBar::new(file.num_entries as u64);

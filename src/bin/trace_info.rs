@@ -1,6 +1,6 @@
 //! Display info and statistics of trace file
 use cbp_experiments::{
-    Branch, BranchType, TraceFileDecoder, create_insn_index_mapping, get_tqdm_style,
+    Branch, BranchType, TraceFileDecoder, create_inst_index_mapping, get_inst_index, get_tqdm_style,
 };
 use clap::Parser;
 use cli_table::{Cell, Table, print_stdout};
@@ -71,7 +71,7 @@ fn main() -> anyhow::Result<()> {
     // create a mapping from instruction address to instruction index for instruction counting
     let mut mapping: HashMap<u64, u64> = HashMap::new();
     if let Some(elf) = &args.exe_path {
-        mapping = create_insn_index_mapping(elf)?;
+        mapping = create_inst_index_mapping(elf)?;
     }
 
     let mut branch_infos = vec![BranchInfo::default(); file.num_brs];
@@ -79,8 +79,8 @@ fn main() -> anyhow::Result<()> {
     // preprocess instruction indices for all branches
     if args.exe_path.is_some() {
         for (i, branch) in file.branches.iter().enumerate() {
-            branch_infos[i].inst_addr_index = *mapping.get(&branch.inst_addr).unwrap();
-            branch_infos[i].targ_addr_index = *mapping.get(&branch.targ_addr).unwrap();
+            branch_infos[i].inst_addr_index = get_inst_index(&mapping, branch.inst_addr);
+            branch_infos[i].targ_addr_index = get_inst_index(&mapping, branch.targ_addr);
         }
     }
 
