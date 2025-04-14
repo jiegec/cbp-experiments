@@ -18,7 +18,7 @@ struct __attribute__((packed)) branch {
 };
 
 struct __attribute__((packed)) entry {
-  int br_index : 15;
+  int br_index : 31;
   int taken : 1;
 };
 
@@ -31,4 +31,4 @@ struct __attribute__((packed)) entry {
 //   uint64_t num_entries;
 // }
 
-#define MAX_BRS (1 << 15)
+#define MAX_BRS (1 << 20)

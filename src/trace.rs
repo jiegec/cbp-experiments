@@ -20,21 +20,21 @@ pub struct Branch {
 
 #[repr(C)]
 #[derive(Default, Clone, Copy)]
-pub struct Entry(pub u16);
+pub struct Entry(pub u32);
 
 impl Entry {
     pub fn get_br_index(&self) -> usize {
-        (self.0 & 0x7FFF).into()
+        (self.0 & 0x7FFFFFFF) as usize
     }
 
     pub fn get_taken(&self) -> bool {
-        (self.0 & 0x8000) != 0
+        (self.0 & 0x80000000) != 0
     }
 
     pub fn from(br_index: usize, taken: bool) -> Self {
-        // max brs
-        assert!(br_index < 0x8000);
-        Self(br_index as u16 | ((taken as u16) << 15))
+        // must not overflow to taken bit
+        assert!(br_index < 0x80000000);
+        Self(br_index as u32 | ((taken as u32) << 31))
     }
 }
 
@@ -52,14 +52,14 @@ impl<'a> Iterator for TraceEntryIterator<'a> {
         // ask for more data from decoder
         match self.decoder.read(&mut self.buf) {
             Ok(size) => {
-                assert!(size % 2 == 0);
+                assert!(size % std::mem::size_of::<Entry>() == 0);
                 if size == 0 {
                     None
                 } else {
                     let entries: &[Entry] = unsafe {
                         std::slice::from_raw_parts(
                             &self.buf[0] as *const u8 as *const Entry,
-                            size / 2,
+                            size / std::mem::size_of::<Entry>(),
                         )
                     };
                     Some(entries)
@@ -207,7 +207,7 @@ impl<'a> TraceFileEncoder<'a> {
             self.encoder.write_all(unsafe {
                 std::slice::from_raw_parts(
                     self.buffer.as_ptr() as *const u8,
-                    std::mem::size_of::<u16>() * self.buffer_size,
+                    std::mem::size_of::<Entry>() * self.buffer_size,
                 )
             })?;
             self.buffer_size = 0;
@@ -223,7 +223,7 @@ impl<'a> TraceFileEncoder<'a> {
             self.encoder.write_all(unsafe {
                 std::slice::from_raw_parts(
                     self.buffer.as_ptr() as *const u8,
-                    std::mem::size_of::<u16>() * self.buffer_size,
+                    std::mem::size_of::<Entry>() * self.buffer_size,
                 )
             })?;
             self.buffer_size = 0;
