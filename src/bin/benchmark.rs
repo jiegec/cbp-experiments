@@ -177,6 +177,8 @@ fn main() -> anyhow::Result<()> {
                         dir.join(format!("{}-{}-stdout.log", benchmark.name, command_index));
                     let stderr_file =
                         dir.join(format!("{}-{}-stderr.log", benchmark.name, command_index));
+                    println!("Stdout is logged to {}", stdout_file.display());
+                    println!("Stderr is logged to {}", stderr_file.display());
 
                     // resolve executable path before changing cwd
                     let exe_path = benchmark.executable.resolve();
