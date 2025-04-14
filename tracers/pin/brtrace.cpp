@@ -1,10 +1,11 @@
 #include "../common/common.h"
 #include "pin.H"
-#include <cassert>
 #include <cmath>
 #include <map>
 #include <stdio.h>
 #include <zstd.h>
+
+// CAUTION: do not use <cassert>, use assert from pin instead
 
 // based on pin manual examples
 

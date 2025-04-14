@@ -1,0 +1,3 @@
+[submodule "tracers/pin/zstd"]
+	path = tracers/pin/zstd
+	url = https://github.com/facebook/zstd.git
