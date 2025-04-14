@@ -26,11 +26,11 @@ pub struct SimulateResult {
     pub simulate: u64,
 
     /// overall statistics
-    /// number of conditional branch mispredictions
+    /// number of conditional branch mispredictions, pmu branch-misses
     pub total_mispred_count: u64,
-    /// number of branches runtime executions
+    /// number of branches runtime executions, pmu branches
     pub total_br_execution_count: u64,
-    /// number of conditional branches runtime executions
+    /// number of conditional branches runtime executions, pmu br_inst_retired.cond
     pub total_cond_execution_count: u64,
     /// conditional branch mispredictions per kilo instructions
     pub cmpki: f64,
