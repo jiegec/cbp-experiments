@@ -96,13 +96,17 @@ impl<'a> Iterator for TraceEntryIterator<'a> {
 
 impl<'a> TraceEntryIterator<'a> {
     pub fn from(file: &TraceFileDecoder<'a>) -> anyhow::Result<TraceEntryIterator<'a>> {
-        let compressed_entries = &file.content
-            [0..file.content.len() - 16 - std::mem::size_of::<Branch>() * file.num_brs];
+        let compressed_entries = &file.content[0..file.content.len()
+            - 24
+            - std::mem::size_of::<Branch>() * file.num_brs
+            - std::mem::size_of::<Image>() * file.num_images];
         let cursor = Cursor::new(compressed_entries);
         let decoder = zstd::stream::read::Decoder::new(cursor)?;
         Ok(TraceEntryIterator {
-            compressed_entries: &file.content
-                [0..file.content.len() - 16 - std::mem::size_of::<Branch>() * file.num_brs],
+            compressed_entries: &file.content[0..file.content.len()
+                - 24
+                - std::mem::size_of::<Branch>() * file.num_brs
+                - std::mem::size_of::<Image>() * file.num_images],
             num_entries: file.num_entries,
             buf: [0u8; 1024 * 256],
             decoder,

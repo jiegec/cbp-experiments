@@ -277,7 +277,7 @@ impl<'a> Iterator for IntelPTIterator<'a> {
                     ..self.offset + event_size as usize + data_size];
                 // println!(
                 //     "Found Intel PT data at 0x{:x} with size {}",
-                //     offset + event_size as usize,
+                //     self.offset + event_size as usize,
                 //     data_size
                 // );
                 self.packets.extend(parse_intel_pt_packets(data));
@@ -477,6 +477,7 @@ fn main() -> anyhow::Result<()> {
             }
             Err(index) => {
                 // the immediate next
+                assert!(index < branches.len());
                 index
             }
         }
