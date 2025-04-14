@@ -172,6 +172,12 @@ fn main() -> anyhow::Result<()> {
                         benchmark.executable,
                         command.args
                     );
+
+                    let stdout_file =
+                        dir.join(format!("{}-{}-stdout.log", benchmark.name, command_index));
+                    let stderr_file =
+                        dir.join(format!("{}-{}-stderr.log", benchmark.name, command_index));
+
                     // resolve executable path before changing cwd
                     let exe_path = benchmark.executable.resolve();
                     match tracer {
@@ -187,10 +193,10 @@ fn main() -> anyhow::Result<()> {
                             let result = std::process::Command::new("sh")
                                 .arg("-c")
                                 .arg(args)
-                                .stdin(Stdio::null())
-                                .stdout(Stdio::null())
-                                .stderr(Stdio::null())
                                 .current_dir(tmp_dir.path())
+                                .stdin(Stdio::null())
+                                .stdout(File::create(stdout_file)?)
+                                .stderr(File::create(stderr_file)?)
                                 .status()?;
                             assert!(result.success());
                         }
@@ -207,8 +213,8 @@ fn main() -> anyhow::Result<()> {
                                 .arg("-c")
                                 .arg(args)
                                 .stdin(Stdio::null())
-                                .stdout(Stdio::null())
-                                .stderr(Stdio::null())
+                                .stdout(File::create(stdout_file)?)
+                                .stderr(File::create(stderr_file)?)
                                 .current_dir(tmp_dir.path())
                                 .status()?;
                             assert!(result.success());
@@ -228,8 +234,8 @@ fn main() -> anyhow::Result<()> {
                                 .arg("-c")
                                 .arg(args)
                                 .stdin(Stdio::null())
-                                .stdout(Stdio::null())
-                                .stderr(Stdio::null())
+                                .stdout(File::create(stdout_file)?)
+                                .stderr(File::create(stderr_file)?)
                                 .current_dir(tmp_dir.path())
                                 .status()?;
                             assert!(result.success());

@@ -16,6 +16,7 @@
 //             \- {benchmark-name}-{command-index}-simpoint-{command-index}.log
 //    \- traces/
 //       \- {tracer-name}/
+//          |- {benchmark-name}-{command-index}-stdout.log
 //          \- {benchmark-name}-{command-index}.log
 //       \- final/
 //          \- {benchmark-name}-{command-index}.log -> ../tracer-name/{benchmark-name}-{command-index}.log
