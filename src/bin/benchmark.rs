@@ -138,6 +138,17 @@ fn main() -> anyhow::Result<()> {
             let config: Config =
                 serde_json::from_slice(&std::fs::read(get_config_path(config_name))?)?;
 
+            if let Tracer::IntelPT = tracer {
+                // check if kernel.perf_event_paranoid is set to -1
+                let output = std::process::Command::new("/sbin/sysctl")
+                    .arg("kernel.perf_event_paranoid")
+                    .output()?;
+                assert_eq!(
+                    String::from_utf8_lossy(&output.stdout),
+                    "kernel.perf_event_paranoid = -1\n"
+                );
+            }
+
             for benchmark in &config.benchmarks {
                 for (command_index, command) in benchmark.commands.iter().enumerate() {
                     // create a temporary folder to run the benchmark
