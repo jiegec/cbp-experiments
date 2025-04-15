@@ -556,7 +556,11 @@ fn main() -> anyhow::Result<()> {
                                         BranchType::Return => {
                                             // ret compression: if the target address of ret matches the call,
                                             // it is stored as a taken bit in TNT packet
-                                            assert!(taken);
+                                            assert!(
+                                                taken,
+                                                "Got packet {:?} while expected a return {:x?}",
+                                                packet, branch
+                                            );
                                             let (target_ip, target_branch_index) =
                                                 call_stack.pop_back().unwrap();
 
