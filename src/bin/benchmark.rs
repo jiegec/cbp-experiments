@@ -255,9 +255,8 @@ fn main() -> anyhow::Result<()> {
 
                             // conversion
                             let args = format!(
-                                "time target/release/intel_pt_converter --trace-path {} --exe-path {} --output-path {}",
+                                "time target/release/intel_pt_converter --trace-path {} --output-path {}",
                                 perf_data_file.display(),
-                                benchmark.executable,
                                 trace_file.display(),
                             );
                             println!("Running {}", args);

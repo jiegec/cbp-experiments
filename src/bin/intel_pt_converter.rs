@@ -1,17 +1,10 @@
 //! Parse Intel PT trace in perf.data and convert to our trace format
 
-use capstone::{
-    arch::{
-        ArchOperand,
-        x86::{X86Operand, X86OperandType},
-    },
-    prelude::*,
-};
-use cbp_experiments::{BranchType, Image, TraceFileEncoder, get_tqdm_style};
+use cbp_experiments::{BranchType, Image, TraceFileEncoder, find_branches, get_tqdm_style};
 use clap::Parser;
 use indicatif::ProgressBar;
 use memmap::{Mmap, MmapOptions};
-use object::{Object, ObjectKind, ObjectSection, SectionKind, elf, read::elf::ProgramHeader};
+use object::{Object, ObjectKind, elf, read::elf::ProgramHeader};
 use std::{
     collections::VecDeque,
     fs::File,
@@ -357,15 +350,6 @@ impl PerfDataIterator {
 fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
 
-    // parse elf, find all branches and put them in an array
-
-    let cs = Capstone::new()
-        .x86()
-        .mode(arch::x86::ArchMode::Mode64)
-        .syntax(arch::x86::ArchSyntax::Att)
-        .detail(true)
-        .build()?;
-
     let mut branches: Vec<BranchInfo> = vec![];
 
     // find the first branch that appears after or equal to the target address
@@ -432,6 +416,7 @@ fn main() -> anyhow::Result<()> {
 
     for entry in PerfDataIterator::from(args.trace_path)? {
         match entry {
+            // parse elf, find all branches and put them in an array
             PerfDataEntry::Image(image) => {
                 // collect images
                 let mut image_filename = image.get_filename()?;
@@ -446,116 +431,20 @@ fn main() -> anyhow::Result<()> {
                     // use our dumped vdso
                     image_filename = "tracers/intel-pt/vdso".to_string();
                 }
-                let binary_data = std::fs::read(&image_filename)?;
-                let file = object::File::parse(&*binary_data)?;
-                let jump = Some("jump".to_string());
-                let branch_relative = Some("branch_relative".to_string());
-                let call = Some("call".to_string());
-                let ret = Some("ret".to_string());
+                for branch in find_branches(&image_filename, Some(image.start))? {
+                    // range validation
+                    assert!(
+                        image.start <= branch.inst_addr
+                            && branch.inst_addr < image.start + image.len
+                    );
 
-                for section in file.sections() {
-                    if section.kind() == SectionKind::Text {
-                        let content = section.data()?;
-                        let insns = cs.disasm_all(content, section.address())?;
-                        for insn in insns.as_ref() {
-                            let detail: InsnDetail =
-                                cs.insn_detail(insn).expect("Failed to get insn detail");
-                            let groups: Vec<Option<String>> = detail
-                                .groups()
-                                .iter()
-                                .map(|id| cs.group_name(*id))
-                                .collect();
-                            let has_jump = groups.contains(&jump);
-                            let has_branch_relative = groups.contains(&branch_relative);
-                            let has_call = groups.contains(&call);
-                            let has_ret = groups.contains(&ret);
-                            if has_jump || has_branch_relative || has_call || has_ret {
-                                // classify
-                                let mnemonic = insn.mnemonic().unwrap();
-                                let branch_type =
-                                    match (has_jump, has_branch_relative, has_call, has_ret) {
-                                        // direct jump, possible conditional
-                                        (true, true, false, false) => match mnemonic {
-                                            "jmp" => BranchType::DirectJump,
-                                            "ja" | "jae" | "jb" | "jbe" | "jc" | "jcxz"
-                                            | "jecxz" | "jrcxz" | "je" | "jg" | "jge" | "jl"
-                                            | "jle" | "jna" | "jnae" | "jnb" | "jnbe" | "jnc"
-                                            | "jne" | "jng" | "jnge" | "jnl" | "jnle" | "jno"
-                                            | "jnp" | "jns" | "jnz" | "jo" | "jp" | "jpe"
-                                            | "jpo" | "js" | "jz" => {
-                                                BranchType::ConditionalDirectJump
-                                            }
-                                            "xbegin" => continue,
-                                            _ => unimplemented!("Unhandled mnemonic {}", mnemonic),
-                                        },
-                                        // indirect jump
-                                        (true, false, false, false) => {
-                                            assert!(["jmpq"].contains(&mnemonic));
-                                            BranchType::IndirectJump
-                                        }
-                                        // direct call
-                                        (false, true, true, false) => {
-                                            assert_eq!(mnemonic, "callq");
-                                            BranchType::DirectCall
-                                        }
-                                        // indirect call
-                                        (false, false, true, false) => {
-                                            assert_eq!(mnemonic, "callq");
-                                            BranchType::IndirectCall
-                                        }
-                                        // return
-                                        (false, false, false, true) => {
-                                            assert!(["retq"].contains(&mnemonic));
-                                            BranchType::Return
-                                        }
-                                        _ => unimplemented!(
-                                            "Unhandled insn {} with groups {:?}",
-                                            insn,
-                                            groups
-                                        ),
-                                    };
-
-                                let ops = detail.arch_detail().operands();
-                                let targ_addr = match branch_type {
-                                    BranchType::ConditionalDirectJump
-                                    | BranchType::DirectCall
-                                    | BranchType::DirectJump => {
-                                        assert_eq!(ops.len(), 1);
-                                        Some(match ops[0] {
-                                            ArchOperand::X86Operand(X86Operand {
-                                                op_type: X86OperandType::Imm(imm),
-                                                size: _,
-                                                access: _,
-                                                avx_bcast: _,
-                                                avx_zero_opmask: _,
-                                            }) => {
-                                                // add runtime load offset
-                                                assert!((imm as u64) < image.len);
-                                                imm as u64 + image.start
-                                            }
-                                            _ => unimplemented!("Unhandled operand {:?}", ops[0]),
-                                        })
-                                    }
-                                    _ => None,
-                                };
-
-                                let inst_addr = insn.address() + image.start;
-
-                                // range validation
-                                assert!(
-                                    image.start <= inst_addr && inst_addr < image.start + image.len
-                                );
-
-                                branches.push(BranchInfo {
-                                    branch_type,
-                                    inst_addr,
-                                    inst_length: insn.len() as u32,
-                                    targ_addr,
-                                    targ_addr_branch_index: None,
-                                });
-                            }
-                        }
-                    }
+                    branches.push(BranchInfo {
+                        branch_type: branch.branch_type,
+                        inst_addr: branch.inst_addr,
+                        inst_length: branch.inst_length,
+                        targ_addr: branch.targ_addr,
+                        targ_addr_branch_index: None,
+                    });
                 }
 
                 // sort branches by inst address for monotonicity
@@ -579,6 +468,10 @@ fn main() -> anyhow::Result<()> {
                     branch.targ_addr_branch_index = targ_addr_branch_index;
                 }
                 output_branch_indices.resize(branches.len(), None);
+
+                // find interpreter
+                let binary_data = std::fs::read(&image_filename)?;
+                let file = object::File::parse(&*binary_data)?;
 
                 if file.kind() == ObjectKind::Dynamic {
                     // if it is a PIE, find its PT_INTERP
