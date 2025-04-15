@@ -11,11 +11,12 @@ use cbp_experiments::{BranchType, Image, TraceFileEncoder, get_tqdm_style};
 use clap::Parser;
 use indicatif::ProgressBar;
 use memmap::{Mmap, MmapOptions};
-use object::{Object, ObjectSection, SectionKind};
+use object::{Object, ObjectKind, ObjectSection, SectionKind, elf, read::elf::ProgramHeader};
 use std::{
     collections::VecDeque,
     fs::File,
     path::{Path, PathBuf},
+    usize,
 };
 
 #[derive(Parser)]
@@ -24,10 +25,6 @@ struct Cli {
     /// Path to input trace file (perf.data)
     #[arg(short, long)]
     trace_path: PathBuf,
-
-    /// Path to executable file
-    #[arg(short, long)]
-    exe_path: PathBuf,
 
     /// Path to output trace file
     #[arg(short, long)]
@@ -369,105 +366,7 @@ fn main() -> anyhow::Result<()> {
         .detail(true)
         .build()?;
 
-    let binary_data = std::fs::read(args.exe_path)?;
-    let file = object::File::parse(&*binary_data)?;
-    let jump = Some("jump".to_string());
-    let branch_relative = Some("branch_relative".to_string());
-    let call = Some("call".to_string());
-    let ret = Some("ret".to_string());
     let mut branches: Vec<BranchInfo> = vec![];
-
-    for section in file.sections() {
-        if section.kind() == SectionKind::Text {
-            let content = section.data()?;
-            let insns = cs.disasm_all(content, section.address())?;
-            for insn in insns.as_ref() {
-                let detail: InsnDetail = cs.insn_detail(insn).expect("Failed to get insn detail");
-                let groups: Vec<Option<String>> = detail
-                    .groups()
-                    .iter()
-                    .map(|id| cs.group_name(*id))
-                    .collect();
-                let has_jump = groups.contains(&jump);
-                let has_branch_relative = groups.contains(&branch_relative);
-                let has_call = groups.contains(&call);
-                let has_ret = groups.contains(&ret);
-                if has_jump || has_branch_relative || has_call || has_ret {
-                    // classify
-                    let mnemonic = insn.mnemonic().unwrap();
-                    let branch_type = match (has_jump, has_branch_relative, has_call, has_ret) {
-                        // direct jump, possible conditional
-                        (true, true, false, false) => match mnemonic {
-                            "jmp" => BranchType::DirectJump,
-                            "ja" | "jae" | "jb" | "jbe" | "jc" | "jcxz" | "jecxz" | "jrcxz"
-                            | "je" | "jg" | "jge" | "jl" | "jle" | "jna" | "jnae" | "jnb"
-                            | "jnbe" | "jnc" | "jne" | "jng" | "jnge" | "jnl" | "jnle" | "jno"
-                            | "jnp" | "jns" | "jnz" | "jo" | "jp" | "jpe" | "jpo" | "js" | "jz" => {
-                                BranchType::ConditionalDirectJump
-                            }
-                            "xbegin" => continue,
-                            _ => unimplemented!("Unhandled mnemonic {}", mnemonic),
-                        },
-                        // indirect jump
-                        (true, false, false, false) => {
-                            assert!(["jmpq"].contains(&mnemonic));
-                            BranchType::IndirectJump
-                        }
-                        // direct call
-                        (false, true, true, false) => {
-                            assert_eq!(mnemonic, "callq");
-                            BranchType::DirectCall
-                        }
-                        // indirect call
-                        (false, false, true, false) => {
-                            assert_eq!(mnemonic, "callq");
-                            BranchType::IndirectCall
-                        }
-                        // return
-                        (false, false, false, true) => {
-                            assert!(["retq"].contains(&mnemonic));
-                            BranchType::Return
-                        }
-                        _ => unimplemented!("Unhandled insn {} with groups {:?}", insn, groups),
-                    };
-
-                    let ops = detail.arch_detail().operands();
-                    let targ_addr = match branch_type {
-                        BranchType::ConditionalDirectJump
-                        | BranchType::DirectCall
-                        | BranchType::DirectJump => {
-                            assert_eq!(ops.len(), 1);
-                            Some(match ops[0] {
-                                ArchOperand::X86Operand(X86Operand {
-                                    op_type: X86OperandType::Imm(imm),
-                                    size: _,
-                                    access: _,
-                                    avx_bcast: _,
-                                    avx_zero_opmask: _,
-                                }) => imm as u64,
-                                _ => unimplemented!("Unhandled operand {:?}", ops[0]),
-                            })
-                        }
-                        _ => None,
-                    };
-
-                    // ensure monotonicity
-                    let inst_addr = insn.address();
-                    assert!(
-                        inst_addr > branches.last().map(|branch| branch.inst_addr).unwrap_or(0)
-                    );
-
-                    branches.push(BranchInfo {
-                        branch_type,
-                        inst_addr,
-                        inst_length: insn.len() as u32,
-                        targ_addr,
-                        targ_addr_branch_index: None,
-                    });
-                }
-            }
-        }
-    }
 
     // find the first branch that appears after or equal to the target address
     let find_branch_by_pc = |branches: &Vec<BranchInfo>, pc: u64| {
@@ -484,35 +383,18 @@ fn main() -> anyhow::Result<()> {
         }
     };
 
-    // pre-process target branch indices
-    // so that we can locate the next branch quickly
-    let targ_addr_branch_indices: Vec<Option<usize>> = branches
-        .iter()
-        .map(|branch| {
-            if let Some(targ_addr) = branch.targ_addr {
-                return Some(find_branch_by_pc(&branches, targ_addr));
-            }
-
-            None
-        })
-        .collect();
-    for (branch, targ_addr_branch_index) in branches.iter_mut().zip(targ_addr_branch_indices) {
-        branch.targ_addr_branch_index = targ_addr_branch_index;
-    }
-
     // starting from entrypoint, iterate branches
-    let entry_pc = file.entry();
-    let mut branch_index = find_branch_by_pc(&branches, entry_pc);
+    // we don't know the branch index for now
+    let mut branch_index = usize::MAX;
     // maintain call stack of depth 64, storing return address & next branch index of calls
     let mut call_stack: VecDeque<(u64, usize)> = VecDeque::new();
 
-    println!("Reconstructing control from entrypoint 0x{:x}", entry_pc);
     println!("Writing to trace file at {}", args.output_path.display());
     let output_file = File::create(&args.output_path)?;
     let mut output_trace = TraceFileEncoder::open(&output_file)?;
 
     // Maintain branch index in output file as optimization
-    let mut output_branch_indices: Vec<Option<usize>> = vec![None; branches.len()];
+    let mut output_branch_indices: Vec<Option<usize>> = vec![];
 
     // record direct branch, eligible for caching branch index in output trace
     let record_direct = |output_trace: &mut TraceFileEncoder,
@@ -545,16 +427,195 @@ fn main() -> anyhow::Result<()> {
             )
         };
 
+    // interpreter for executable
+    let mut interpreter = None;
+
     for entry in PerfDataIterator::from(args.trace_path)? {
         match entry {
             PerfDataEntry::Image(image) => {
                 // collect images
+                let mut image_filename = image.get_filename()?;
                 println!(
                     "Found image {} loaded at 0x{:x}",
-                    image.get_filename()?,
-                    image.start
+                    image_filename, image.start
                 );
                 output_trace.images.push(image);
+
+                // parse instructions in the image
+                if image_filename == "[vdso]" {
+                    // use our dumped vdso
+                    image_filename = "tracers/intel-pt/vdso".to_string();
+                }
+                let binary_data = std::fs::read(&image_filename)?;
+                let file = object::File::parse(&*binary_data)?;
+                let jump = Some("jump".to_string());
+                let branch_relative = Some("branch_relative".to_string());
+                let call = Some("call".to_string());
+                let ret = Some("ret".to_string());
+
+                for section in file.sections() {
+                    if section.kind() == SectionKind::Text {
+                        let content = section.data()?;
+                        let insns = cs.disasm_all(content, section.address())?;
+                        for insn in insns.as_ref() {
+                            let detail: InsnDetail =
+                                cs.insn_detail(insn).expect("Failed to get insn detail");
+                            let groups: Vec<Option<String>> = detail
+                                .groups()
+                                .iter()
+                                .map(|id| cs.group_name(*id))
+                                .collect();
+                            let has_jump = groups.contains(&jump);
+                            let has_branch_relative = groups.contains(&branch_relative);
+                            let has_call = groups.contains(&call);
+                            let has_ret = groups.contains(&ret);
+                            if has_jump || has_branch_relative || has_call || has_ret {
+                                // classify
+                                let mnemonic = insn.mnemonic().unwrap();
+                                let branch_type =
+                                    match (has_jump, has_branch_relative, has_call, has_ret) {
+                                        // direct jump, possible conditional
+                                        (true, true, false, false) => match mnemonic {
+                                            "jmp" => BranchType::DirectJump,
+                                            "ja" | "jae" | "jb" | "jbe" | "jc" | "jcxz"
+                                            | "jecxz" | "jrcxz" | "je" | "jg" | "jge" | "jl"
+                                            | "jle" | "jna" | "jnae" | "jnb" | "jnbe" | "jnc"
+                                            | "jne" | "jng" | "jnge" | "jnl" | "jnle" | "jno"
+                                            | "jnp" | "jns" | "jnz" | "jo" | "jp" | "jpe"
+                                            | "jpo" | "js" | "jz" => {
+                                                BranchType::ConditionalDirectJump
+                                            }
+                                            "xbegin" => continue,
+                                            _ => unimplemented!("Unhandled mnemonic {}", mnemonic),
+                                        },
+                                        // indirect jump
+                                        (true, false, false, false) => {
+                                            assert!(["jmpq"].contains(&mnemonic));
+                                            BranchType::IndirectJump
+                                        }
+                                        // direct call
+                                        (false, true, true, false) => {
+                                            assert_eq!(mnemonic, "callq");
+                                            BranchType::DirectCall
+                                        }
+                                        // indirect call
+                                        (false, false, true, false) => {
+                                            assert_eq!(mnemonic, "callq");
+                                            BranchType::IndirectCall
+                                        }
+                                        // return
+                                        (false, false, false, true) => {
+                                            assert!(["retq"].contains(&mnemonic));
+                                            BranchType::Return
+                                        }
+                                        _ => unimplemented!(
+                                            "Unhandled insn {} with groups {:?}",
+                                            insn,
+                                            groups
+                                        ),
+                                    };
+
+                                let ops = detail.arch_detail().operands();
+                                let targ_addr = match branch_type {
+                                    BranchType::ConditionalDirectJump
+                                    | BranchType::DirectCall
+                                    | BranchType::DirectJump => {
+                                        assert_eq!(ops.len(), 1);
+                                        Some(match ops[0] {
+                                            ArchOperand::X86Operand(X86Operand {
+                                                op_type: X86OperandType::Imm(imm),
+                                                size: _,
+                                                access: _,
+                                                avx_bcast: _,
+                                                avx_zero_opmask: _,
+                                            }) => {
+                                                // add runtime load offset
+                                                assert!((imm as u64) < image.len);
+                                                imm as u64 + image.start
+                                            }
+                                            _ => unimplemented!("Unhandled operand {:?}", ops[0]),
+                                        })
+                                    }
+                                    _ => None,
+                                };
+
+                                let inst_addr = insn.address() + image.start;
+
+                                // range validation
+                                assert!(
+                                    image.start <= inst_addr && inst_addr < image.start + image.len
+                                );
+
+                                branches.push(BranchInfo {
+                                    branch_type,
+                                    inst_addr,
+                                    inst_length: insn.len() as u32,
+                                    targ_addr,
+                                    targ_addr_branch_index: None,
+                                });
+                            }
+                        }
+                    }
+                }
+
+                // sort branches by inst address for monotonicity
+                branches.sort_by_key(|branch| branch.inst_addr);
+
+                // pre-process target branch indices
+                // so that we can locate the next branch quickly
+                let targ_addr_branch_indices: Vec<Option<usize>> = branches
+                    .iter()
+                    .map(|branch| {
+                        if let Some(targ_addr) = branch.targ_addr {
+                            return Some(find_branch_by_pc(&branches, targ_addr));
+                        }
+
+                        None
+                    })
+                    .collect();
+                for (branch, targ_addr_branch_index) in
+                    branches.iter_mut().zip(targ_addr_branch_indices)
+                {
+                    branch.targ_addr_branch_index = targ_addr_branch_index;
+                }
+                output_branch_indices.resize(branches.len(), None);
+
+                if file.kind() == ObjectKind::Dynamic {
+                    // if it is a PIE, find its PT_INTERP
+
+                    match &file {
+                        object::File::Elf64(elf_file) => {
+                            for segment in elf_file.elf_program_headers() {
+                                if segment.p_type(elf_file.endian()) == elf::PT_INTERP {
+                                    let offset = segment.p_offset(elf_file.endian());
+                                    let size = segment.p_filesz(elf_file.endian());
+                                    let content =
+                                        &binary_data[offset as usize..(offset + size) as usize];
+                                    let len = content
+                                        .iter()
+                                        .position(|ch| *ch == 0)
+                                        .unwrap_or(content.len());
+
+                                    let str = String::from_utf8(Vec::from(&content[..len]))?;
+                                    let path = std::fs::canonicalize(&str)?;
+                                    println!("Found interpreter {}", path.display());
+                                    interpreter = Some(format!("{}", path.display()));
+                                }
+                            }
+                        }
+                        _ => unimplemented!("Unsupported binary type"),
+                    }
+                }
+
+                if (file.kind() == ObjectKind::Executable && interpreter.is_none())
+                    || interpreter == Some(image_filename)
+                {
+                    // case 1, statically linked executable: this executable provides the entrypoint
+                    // case 2, interpreter found: this interpreter provides the entrypoint
+                    let entry_pc = file.entry() + image.start;
+                    branch_index = find_branch_by_pc(&branches, entry_pc);
+                    println!("Reconstructing control from entrypoint 0x{:x}", entry_pc);
+                }
             }
             PerfDataEntry::IntelPT(packets) => {
                 for packet in packets {

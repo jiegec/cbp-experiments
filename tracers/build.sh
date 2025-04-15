@@ -19,3 +19,8 @@ popd
 popd
 make clean all TARGET=intel64 PIN_ROOT=$HOME/prefix/pin
 popd
+
+pushd intel-pt
+gcc dump-vdso.c -o dump-vdso
+./dump-vdso > vdso
+popd
