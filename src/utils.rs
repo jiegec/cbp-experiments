@@ -75,12 +75,8 @@ pub struct StaticBranch {
 }
 
 /// Find all branches by parsing ELF
-pub fn find_branches<P: AsRef<Path>>(
-    path: P,
-    load_base: Option<u64>,
-) -> anyhow::Result<Vec<StaticBranch>> {
+pub fn find_branches<P: AsRef<Path>>(path: P, load_base: u64) -> anyhow::Result<Vec<StaticBranch>> {
     let mut branches = vec![];
-    let load_base = load_base.unwrap_or(0);
 
     let cs = Capstone::new()
         .x86()

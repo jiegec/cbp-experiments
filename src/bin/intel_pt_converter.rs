@@ -431,7 +431,17 @@ fn main() -> anyhow::Result<()> {
                     // use our dumped vdso
                     image_filename = "tracers/intel-pt/vdso".to_string();
                 }
-                for branch in find_branches(&image_filename, Some(image.start))? {
+
+                let binary_data = std::fs::read(&image_filename)?;
+                let file = object::File::parse(&*binary_data)?;
+
+                let load_base = match file.kind() {
+                    ObjectKind::Executable => 0,
+                    ObjectKind::Dynamic => image.start,
+                    _ => unimplemented!("Unsupported file kind"),
+                };
+
+                for branch in find_branches(&image_filename, load_base)? {
                     // range validation
                     assert!(
                         image.start <= branch.inst_addr
@@ -470,9 +480,6 @@ fn main() -> anyhow::Result<()> {
                 output_branch_indices.resize(branches.len(), None);
 
                 // find interpreter
-                let binary_data = std::fs::read(&image_filename)?;
-                let file = object::File::parse(&*binary_data)?;
-
                 if file.kind() == ObjectKind::Dynamic {
                     // if it is a PIE, find its PT_INTERP
 
