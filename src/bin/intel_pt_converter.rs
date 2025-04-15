@@ -361,7 +361,11 @@ fn main() -> anyhow::Result<()> {
             }
             Err(index) => {
                 // the immediate next
-                assert!(index < branches.len());
+                assert!(
+                    index < branches.len(),
+                    "Failed to find branch with pc 0x{:x}",
+                    pc
+                );
                 index
             }
         }
@@ -421,8 +425,10 @@ fn main() -> anyhow::Result<()> {
                 // collect images
                 let mut image_filename = image.get_filename()?;
                 println!(
-                    "Found image {} loaded at 0x{:x}",
-                    image_filename, image.start
+                    "Found image {} loaded from 0x{:x} to 0x{:x}",
+                    image_filename,
+                    image.start,
+                    image.start + image.len
                 );
                 output_trace.images.push(image);
 
@@ -512,7 +518,7 @@ fn main() -> anyhow::Result<()> {
                 {
                     // case 1, statically linked executable: this executable provides the entrypoint
                     // case 2, interpreter found: this interpreter provides the entrypoint
-                    let entry_pc = file.entry() + image.start;
+                    let entry_pc = file.entry() + load_base;
                     branch_index = find_branch_by_pc(&branches, entry_pc);
                     println!("Reconstructing control from entrypoint 0x{:x}", entry_pc);
                 }
