@@ -5,6 +5,7 @@ use cbp_experiments::{
 };
 use clap::Parser;
 use cli_table::{Cell, Table, print_stdout};
+use log::{Level, log_enabled, trace};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -25,6 +26,8 @@ pub struct BranchInfo {
 }
 
 fn main() -> anyhow::Result<()> {
+    env_logger::init();
+
     let args = Cli::parse();
     let content = std::fs::read(args.trace_path)?;
     // parse trace file
@@ -97,14 +100,33 @@ fn main() -> anyhow::Result<()> {
             branch_infos[br_index].execution_count += 1;
             branch_infos[br_index].taken_count += taken as u64;
 
-            // instruction counting
-            let curr_index = branch_infos[br_index].inst_addr_index;
-            if let Some(last_index) = last_targ_addr_index {
-                // count instructions from last target address to the current branch address
-                assert!(curr_index >= last_index);
-                instructions += curr_index - last_index + 1;
+            if log_enabled!(Level::Trace) {
+                let pc = file.branches[br_index].inst_addr;
+                let mut addr = format!("unknown:0x{:x}", pc);
+                for image in file.images {
+                    if pc >= image.start && pc < image.start + image.len {
+                        addr =
+                            format!("{}:0x{:x}", image.get_filename().unwrap(), pc - image.start);
+                    }
+                }
+                trace!(
+                    "PC = 0x{:x} ({}) {}",
+                    pc,
+                    addr,
+                    if taken { "T" } else { "N" }
+                );
             }
-            last_targ_addr_index = Some(branch_infos[br_index].targ_addr_index);
+
+            // instruction counting
+            if taken {
+                let curr_index = branch_infos[br_index].inst_addr_index;
+                if let Some(last_index) = last_targ_addr_index {
+                    // count instructions from last target address to the current branch address
+                    assert!(curr_index >= last_index);
+                    instructions += curr_index - last_index + 1;
+                }
+                last_targ_addr_index = Some(branch_infos[br_index].targ_addr_index);
+            }
         }
 
         pbar.inc(entries.len() as u64);

@@ -92,7 +92,13 @@ fn main() -> anyhow::Result<()> {
         println!("Loading simulation result from {}", input_file.display());
         let simulate_result: SimulateResult = serde_json::from_reader(File::open(&input_file)?)?;
 
-        // save metadata
+        // validate & save metadata
+        if !predictor.is_empty() {
+            assert_eq!(predictor, simulate_result.predictor);
+        }
+        if !images.is_empty() {
+            assert_eq!(images, simulate_result.images);
+        }
         predictor = simulate_result.predictor;
         images = simulate_result.images;
 

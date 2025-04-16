@@ -61,8 +61,7 @@ pub fn create_inst_index_mapping_from_images(
         .detail(true)
         .build()?;
 
-    let mut mapping: HashMap<u64, u64> = HashMap::new();
-    let mut i = 0;
+    let mut addrs = vec![];
     for image in images {
         let mut image_filename = image.get_filename()?;
         // parse instructions in the image
@@ -84,11 +83,20 @@ pub fn create_inst_index_mapping_from_images(
                 let insns = cs.disasm_all(content, section.address())?;
                 for insn in insns.as_ref() {
                     let addr = insn.address() + load_base;
-                    assert_eq!(mapping.insert(addr, i), None);
-                    i += 1;
+                    addrs.push(addr);
                 }
             }
         }
+    }
+
+    // assign index from low to high address
+    addrs.sort();
+
+    let mut mapping: HashMap<u64, u64> = HashMap::new();
+    let mut i = 0;
+    for addr in addrs {
+        assert_eq!(mapping.insert(addr, i), None);
+        i += 1;
     }
     println!("Found {} instructions from {} images", i, images.len());
     Ok(mapping)

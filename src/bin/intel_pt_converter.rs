@@ -427,7 +427,7 @@ fn main() -> anyhow::Result<()> {
                     addr = format!("{}:0x{:x}", image.get_filename().unwrap(), pc - image.start);
                 }
             }
-            trace!("PC = 0x{:x} ({})", branches[branch_index].inst_addr, addr);
+            trace!("PC = 0x{:x} ({})", pc, addr);
         }
     };
 

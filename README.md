@@ -17,13 +17,22 @@ Run experiments:
 4. Run branch prediction: `cargo run --release --bin benchmark -- simulate --config-name [config] --predictor [predictor]`
 5. Find results under: `benchmarks/[config]/[simulate]/[datetime]-[predictor]/per-benchmark`
 
-Example:
+Example #1 leela benchmark:
 
 ```shell
 cargo run --release --bin benchmark -- record --config-name leela --tracer intel-pt 
 cargo run --release --bin benchmark -- info --config-name leela
 cargo run --release --bin benchmark -- simpoint --config-name leela --size 100000000
 cargo run --release --bin benchmark -- simulate --config-name leela --predictor AndreSeznec-TAGE-SC-L-8KB
+```
+
+Example #2 dynamically linked binary:
+
+```shell
+cargo run --release --bin benchmark -- record --config-name test --tracer intel-pt 
+cargo run --release --bin benchmark -- info --config-name test
+cargo run --release --bin benchmark -- simpoint --config-name test --size 1000
+cargo run --release --bin benchmark -- simulate --config-name test --predictor AndreSeznec-TAGE-SC-L-8KB
 ```
 
 Configuration hierarchy:
