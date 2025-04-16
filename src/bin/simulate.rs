@@ -1,7 +1,7 @@
 //! Test branch prediction accuracy
 use cbp_experiments::{
-    Branch, BranchType, TraceFileDecoder, 
-    create_inst_index_mapping_from_images, get_inst_index, get_tqdm_style,
+    Branch, BranchType, TraceFileDecoder, create_inst_index_mapping_from_images, get_inst_index,
+    get_tqdm_style,
 };
 use cbp_experiments::{SimulateResult, SimulateResultBranchInfo, new_predictor};
 use clap::Parser;
@@ -328,9 +328,15 @@ fn main() -> anyhow::Result<()> {
     );
 
     if let Some(output_path) = &args.output_path {
+        let mut images = vec![];
+        for image in file.images {
+            images.push(image.try_into()?);
+        }
+
         let mut result = SimulateResult {
             trace_path: Some(args.trace_path.clone()),
             predictor: args.predictor.clone(),
+            images,
             skip: args.skip,
             warmup: args.warmup,
             simulate: args.simulate,

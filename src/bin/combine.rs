@@ -44,6 +44,7 @@ fn main() -> anyhow::Result<()> {
     // combined result
     let mut branch_info: Vec<SimulateResultBranchInfo> = vec![];
     let mut predictor = String::new();
+    let mut images = vec![];
     let trace_path: Option<PathBuf>;
 
     // tuple of (input file, weight)
@@ -93,6 +94,7 @@ fn main() -> anyhow::Result<()> {
 
         // save metadata
         predictor = simulate_result.predictor;
+        images = simulate_result.images;
 
         total_instructions += simulate_result.simulate;
 
@@ -197,6 +199,7 @@ fn main() -> anyhow::Result<()> {
     let combined = SimulateResult {
         trace_path,
         predictor,
+        images,
         skip: 0,
         warmup: 0,
         simulate: total_instructions,

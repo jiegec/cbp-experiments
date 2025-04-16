@@ -332,3 +332,22 @@ impl<'a> TraceFileEncoder<'a> {
         Ok(())
     }
 }
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ParsedImage {
+    pub start: u64,
+    pub len: u64,
+    pub filename: String,
+}
+
+impl TryInto<ParsedImage> for &Image {
+    type Error = anyhow::Error;
+
+    fn try_into(self) -> Result<ParsedImage, Self::Error> {
+        Ok(ParsedImage {
+            start: self.start,
+            len: self.len,
+            filename: self.get_filename()?,
+        })
+    }
+}

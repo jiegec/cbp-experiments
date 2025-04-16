@@ -1,4 +1,4 @@
-use crate::Branch;
+use crate::{Branch, ParsedImage};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -17,6 +17,7 @@ pub struct SimulateResult {
     /// configuration
     /// combined simulation result might not have corresponding trace
     pub trace_path: Option<PathBuf>,
+    pub images: Vec<ParsedImage>,
     pub predictor: String,
 
     /// skip/warmup/simulate instruction count
