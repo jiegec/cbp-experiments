@@ -124,14 +124,15 @@ fn main() -> anyhow::Result<()> {
         total_instructions = instructions;
     }
 
-    println!("Top branches by execution count:");
-    branch_info.sort_by_key(|info| info.execution_count);
+    println!("Top branches by misprediction count:");
+    branch_info.sort_by_key(|info| info.mispred_count);
     let mut table = vec![];
     for info in branch_info.iter().rev().take(10) {
         table.push(vec![
             format!("0x{:08x}", info.branch.inst_addr).cell(),
             format!("{:?}", info.branch.branch_type).cell(),
             info.execution_count.cell(),
+            info.mispred_count.cell(),
             format!(
                 "{:.2}",
                 info.taken_count as f64 * 100.0 / info.execution_count as f64
@@ -148,6 +149,7 @@ fn main() -> anyhow::Result<()> {
         "Branch PC".cell(),
         "Branch Type".cell(),
         "Execution Count".cell(),
+        "Misprediction Count".cell(),
         "Taken Rate (%)".cell(),
         "Misprediction Rate (%)".cell(),
     ]);
