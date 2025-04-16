@@ -3,6 +3,7 @@
 use cbp_experiments::{BranchType, Image, TraceFileEncoder, find_branches, get_tqdm_style};
 use clap::Parser;
 use indicatif::ProgressBar;
+use log::trace;
 use memmap::{Mmap, MmapOptions};
 use object::{Object, ObjectKind, elf, read::elf::ProgramHeader};
 use std::{
@@ -348,6 +349,7 @@ impl PerfDataIterator {
 }
 
 fn main() -> anyhow::Result<()> {
+    env_logger::init();
     let args = Cli::parse();
 
     let mut branches: Vec<BranchInfo> = vec![];
@@ -415,13 +417,30 @@ fn main() -> anyhow::Result<()> {
             )
         };
 
+    let trace =
+        |output_trace: &TraceFileEncoder<'_>, branches: &Vec<BranchInfo>, branch_index: usize| {
+            let pc = branches[branch_index].inst_addr;
+            let mut addr = format!("unknown:0x{:x}", pc);
+            for image in &output_trace.images {
+                if pc >= image.start && pc < image.start + image.len {
+                    addr = format!("{}:0x{:x}", image.get_filename().unwrap(), pc - image.start);
+                }
+            }
+            trace!("PC = 0x{:x} ({})", branches[branch_index].inst_addr, addr);
+        };
+
     // interpreter for executable
     let mut interpreter = None;
+    // entrypoint address
+    let mut entrypoint = None;
 
     for entry in PerfDataIterator::from(args.trace_path)? {
         match entry {
             // parse elf, find all branches and put them in an array
             PerfDataEntry::Image(image) => {
+                // parse all images before we start reconstructing control flow
+                assert_eq!(branch_index, usize::MAX);
+
                 // collect images
                 let mut image_filename = image.get_filename()?;
                 println!(
@@ -519,11 +538,18 @@ fn main() -> anyhow::Result<()> {
                     // case 1, statically linked executable: this executable provides the entrypoint
                     // case 2, interpreter found: this interpreter provides the entrypoint
                     let entry_pc = file.entry() + load_base;
-                    branch_index = find_branch_by_pc(&branches, entry_pc);
+                    entrypoint = Some(entry_pc);
                     println!("Reconstructing control from entrypoint 0x{:x}", entry_pc);
                 }
             }
             PerfDataEntry::IntelPT(packets) => {
+                if branch_index == usize::MAX {
+                    // initialize branch index from entrypoint
+                    // the branches array must not change after this
+                    branch_index = find_branch_by_pc(&branches, entrypoint.unwrap());
+                    trace(&output_trace, &branches, branch_index);
+                }
+
                 for packet in packets {
                     match packet {
                         Packet::TNT(tnt) => {
@@ -551,6 +577,7 @@ fn main() -> anyhow::Result<()> {
                                                 // not taken path
                                                 branch_index += 1;
                                             }
+                                            trace(&output_trace, &branches, branch_index);
                                             break;
                                         }
                                         BranchType::Return => {
@@ -568,6 +595,7 @@ fn main() -> anyhow::Result<()> {
 
                                             // go to target address
                                             branch_index = target_branch_index;
+                                            trace(&output_trace, &branches, branch_index);
 
                                             break;
                                         }
@@ -590,6 +618,7 @@ fn main() -> anyhow::Result<()> {
 
                                             // go to target address
                                             branch_index = branch.targ_addr_branch_index.unwrap();
+                                            trace(&output_trace, &branches, branch_index);
                                         }
                                         BranchType::DirectJump => {
                                             record_direct(
@@ -601,6 +630,7 @@ fn main() -> anyhow::Result<()> {
 
                                             // go to target address
                                             branch_index = branch.targ_addr_branch_index.unwrap();
+                                            trace(&output_trace, &branches, branch_index);
                                         }
                                         _ => unimplemented!(
                                             "Unhandled branch {:x?} when handling packet {:x?}",
@@ -622,6 +652,7 @@ fn main() -> anyhow::Result<()> {
 
                                         // find branch @ target address
                                         branch_index = find_branch_by_pc(&branches, tip.target_ip);
+                                        trace(&output_trace, &branches, branch_index);
 
                                         // maintain call stack
                                         call_stack.pop_front();
@@ -646,6 +677,7 @@ fn main() -> anyhow::Result<()> {
 
                                         // go to target address
                                         branch_index = branch.targ_addr_branch_index.unwrap();
+                                        trace(&output_trace, &branches, branch_index);
                                     }
                                     BranchType::IndirectCall => {
                                         record_indirect(&mut output_trace, branch, tip.target_ip)?;
@@ -661,6 +693,7 @@ fn main() -> anyhow::Result<()> {
 
                                         // find branch @ target address
                                         branch_index = find_branch_by_pc(&branches, tip.target_ip);
+                                        trace(&output_trace, &branches, branch_index);
                                         break;
                                     }
                                     BranchType::IndirectJump => {
@@ -668,6 +701,7 @@ fn main() -> anyhow::Result<()> {
 
                                         // find branch @ target address
                                         branch_index = find_branch_by_pc(&branches, tip.target_ip);
+                                        trace(&output_trace, &branches, branch_index);
                                         break;
                                     }
                                     BranchType::DirectJump => {
@@ -680,6 +714,7 @@ fn main() -> anyhow::Result<()> {
 
                                         // go to target address
                                         branch_index = branch.targ_addr_branch_index.unwrap();
+                                        trace(&output_trace, &branches, branch_index);
                                     }
                                     _ => unimplemented!(
                                         "Unhandled branch {:x?} when handling packet {:x?}",
