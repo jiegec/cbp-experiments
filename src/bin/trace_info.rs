@@ -1,6 +1,7 @@
 //! Display info and statistics of trace file
 use cbp_experiments::{
-    Branch, BranchType, TraceFileDecoder, create_inst_index_mapping, get_inst_index, get_tqdm_style,
+    Branch, BranchType, TraceFileDecoder, create_inst_index_mapping_from_images, get_inst_index,
+    get_tqdm_style,
 };
 use clap::Parser;
 use cli_table::{Cell, Table, print_stdout};
@@ -13,10 +14,6 @@ struct Cli {
     /// Path to trace file
     #[arg(short, long)]
     trace_path: PathBuf,
-
-    /// Path to executable file
-    #[arg(short, long)]
-    exe_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -78,19 +75,14 @@ fn main() -> anyhow::Result<()> {
     );
 
     // create a mapping from instruction address to instruction index for instruction counting
-    let mut mapping: HashMap<u64, u64> = HashMap::new();
-    if let Some(elf) = &args.exe_path {
-        mapping = create_inst_index_mapping(elf)?;
-    }
+    let mapping: HashMap<u64, u64> = create_inst_index_mapping_from_images(&file.images)?;
 
     let mut branch_infos = vec![BranchInfo::default(); file.num_brs];
 
     // preprocess instruction indices for all branches
-    if args.exe_path.is_some() {
-        for (i, branch) in file.branches.iter().enumerate() {
-            branch_infos[i].inst_addr_index = get_inst_index(&mapping, branch.inst_addr);
-            branch_infos[i].targ_addr_index = get_inst_index(&mapping, branch.targ_addr);
-        }
+    for (i, branch) in file.branches.iter().enumerate() {
+        branch_infos[i].inst_addr_index = get_inst_index(&mapping, branch.inst_addr);
+        branch_infos[i].targ_addr_index = get_inst_index(&mapping, branch.targ_addr);
     }
 
     println!("Iterating entries");
@@ -105,16 +97,14 @@ fn main() -> anyhow::Result<()> {
             branch_infos[br_index].execution_count += 1;
             branch_infos[br_index].taken_count += taken as u64;
 
-            // add instruction counting if elf is provided
-            if args.exe_path.is_some() && taken {
-                let curr_index = branch_infos[br_index].inst_addr_index;
-                if let Some(last_index) = last_targ_addr_index {
-                    // count instructions from last target address to the current branch address
-                    assert!(curr_index >= last_index);
-                    instructions += curr_index - last_index + 1;
-                }
-                last_targ_addr_index = Some(branch_infos[br_index].targ_addr_index);
+            // instruction counting
+            let curr_index = branch_infos[br_index].inst_addr_index;
+            if let Some(last_index) = last_targ_addr_index {
+                // count instructions from last target address to the current branch address
+                assert!(curr_index >= last_index);
+                instructions += curr_index - last_index + 1;
             }
+            last_targ_addr_index = Some(branch_infos[br_index].targ_addr_index);
         }
 
         pbar.inc(entries.len() as u64);
@@ -126,9 +116,7 @@ fn main() -> anyhow::Result<()> {
     // counted: 110976357974 instructions
     // error less than 0.01%
     // slow down of counting instructions: 18s -> 38s, roughly 2x
-    if args.exe_path.is_some() {
-        println!("Executed {} instructions", instructions);
-    }
+    println!("Executed {} instructions", instructions);
 
     println!("Top branches by execution count:");
     let mut items: Vec<(&BranchInfo, &Branch)> = branch_infos.iter().zip(file.branches).collect();

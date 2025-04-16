@@ -5,10 +5,10 @@ use capstone::{
     },
     prelude::*,
 };
-use object::{Object, ObjectSection, SectionKind};
+use object::{Object, ObjectKind, ObjectSection, SectionKind};
 use std::{collections::HashMap, path::Path};
 
-use crate::BranchType;
+use crate::{BranchType, Image};
 
 pub fn get_tqdm_style() -> indicatif::ProgressStyle {
     indicatif::ProgressStyle::with_template(
@@ -21,7 +21,7 @@ pub fn get_tqdm_style() -> indicatif::ProgressStyle {
         ).progress_chars("██ ")
 }
 
-// create a mapping from instruction address to instruction index for instruction counting
+/// create a mapping from instruction address to instruction index for instruction counting
 pub fn create_inst_index_mapping<P: AsRef<std::path::Path>>(
     elf: P,
 ) -> anyhow::Result<HashMap<u64, u64>> {
@@ -50,6 +50,50 @@ pub fn create_inst_index_mapping<P: AsRef<std::path::Path>>(
     Ok(mapping)
 }
 
+/// create a mapping from instruction address to instruction index for instruction counting
+pub fn create_inst_index_mapping_from_images(
+    images: &[Image],
+) -> anyhow::Result<HashMap<u64, u64>> {
+    let cs = Capstone::new()
+        .x86()
+        .mode(arch::x86::ArchMode::Mode64)
+        .syntax(arch::x86::ArchSyntax::Att)
+        .detail(true)
+        .build()?;
+
+    let mut mapping: HashMap<u64, u64> = HashMap::new();
+    let mut i = 0;
+    for image in images {
+        let mut image_filename = image.get_filename()?;
+        // parse instructions in the image
+        if image_filename == "[vdso]" {
+            // use our dumped vdso
+            image_filename = "tracers/intel-pt/vdso".to_string();
+        }
+        let binary_data = std::fs::read(&image_filename)?;
+        let file = object::File::parse(&*binary_data)?;
+        let load_base = match file.kind() {
+            ObjectKind::Executable => 0,
+            ObjectKind::Dynamic => image.start,
+            _ => unimplemented!("Unsupported file kind"),
+        };
+
+        for section in file.sections() {
+            if section.kind() == SectionKind::Text {
+                let content = section.data()?;
+                let insns = cs.disasm_all(content, section.address())?;
+                for insn in insns.as_ref() {
+                    let addr = insn.address() + load_base;
+                    assert_eq!(mapping.insert(addr, i), None);
+                    i += 1;
+                }
+            }
+        }
+    }
+    println!("Found {} instructions from {} images", i, images.len());
+    Ok(mapping)
+}
+
 pub fn get_inst_index(mapping: &HashMap<u64, u64>, addr: u64) -> u64 {
     match mapping.get(&addr) {
         Some(index) => {
@@ -57,10 +101,7 @@ pub fn get_inst_index(mapping: &HashMap<u64, u64>, addr: u64) -> u64 {
             *index
         }
         None => {
-            // for vdso: map them to a very large number
-            // so that we ignore instructions that reside in vdso
-            assert!(addr >= 0x7f000000000);
-            0xffffffff
+            panic!("Failed to get instruction index for pc 0x{:x}", addr);
         }
     }
 }

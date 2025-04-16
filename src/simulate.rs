@@ -17,7 +17,6 @@ pub struct SimulateResult {
     /// configuration
     /// combined simulation result might not have corresponding trace
     pub trace_path: Option<PathBuf>,
-    pub exe_path: PathBuf,
     pub predictor: String,
 
     /// skip/warmup/simulate instruction count

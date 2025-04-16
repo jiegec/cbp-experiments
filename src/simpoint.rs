@@ -16,8 +16,6 @@ pub struct SimPointPhase {
 pub struct SimPointResult {
     /// Path to trace file
     pub trace_path: PathBuf,
-    /// Path to executable file
-    pub exe_path: PathBuf,
     /// Instruction count of whole trace
     pub total_instructions: u64,
     /// SimPoint slice size in instructions

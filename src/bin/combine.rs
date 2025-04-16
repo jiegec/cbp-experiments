@@ -45,7 +45,6 @@ fn main() -> anyhow::Result<()> {
     let mut branch_info: Vec<SimulateResultBranchInfo> = vec![];
     let mut predictor = String::new();
     let trace_path: Option<PathBuf>;
-    let mut exe_path = PathBuf::new();
 
     // tuple of (input file, weight)
     let mut input_files: Vec<(PathBuf, u64)> = vec![];
@@ -94,7 +93,6 @@ fn main() -> anyhow::Result<()> {
 
         // save metadata
         predictor = simulate_result.predictor;
-        exe_path = simulate_result.exe_path;
 
         total_instructions += simulate_result.simulate;
 
@@ -198,7 +196,6 @@ fn main() -> anyhow::Result<()> {
 
     let combined = SimulateResult {
         trace_path,
-        exe_path,
         predictor,
         skip: 0,
         warmup: 0,

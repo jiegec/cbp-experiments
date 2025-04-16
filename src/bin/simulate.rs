@@ -1,6 +1,7 @@
 //! Test branch prediction accuracy
 use cbp_experiments::{
-    Branch, BranchType, TraceFileDecoder, create_inst_index_mapping, get_inst_index, get_tqdm_style,
+    Branch, BranchType, TraceFileDecoder, 
+    create_inst_index_mapping_from_images, get_inst_index, get_tqdm_style,
 };
 use cbp_experiments::{SimulateResult, SimulateResultBranchInfo, new_predictor};
 use clap::Parser;
@@ -13,10 +14,6 @@ struct Cli {
     /// Path to trace file
     #[arg(short, long)]
     trace_path: PathBuf,
-
-    /// Path to executable file
-    #[arg(short, long)]
-    exe_path: PathBuf,
 
     /// Predictor name
     #[arg(short, long)]
@@ -67,7 +64,7 @@ fn main() -> anyhow::Result<()> {
     let mut predictor_mut = predictor.as_mut().unwrap();
 
     // create a mapping from instruction address to instruction index for instruction counting
-    let mapping = create_inst_index_mapping(&args.exe_path)?;
+    let mapping = create_inst_index_mapping_from_images(&file.images)?;
 
     let mut branch_infos = vec![BranchInfo::default(); file.num_brs];
 
@@ -333,7 +330,6 @@ fn main() -> anyhow::Result<()> {
     if let Some(output_path) = &args.output_path {
         let mut result = SimulateResult {
             trace_path: Some(args.trace_path.clone()),
-            exe_path: args.exe_path.clone(),
             predictor: args.predictor.clone(),
             skip: args.skip,
             warmup: args.warmup,

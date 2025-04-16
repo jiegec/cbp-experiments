@@ -1,7 +1,7 @@
 //! Use SimPoint methodology to reduce trace length
 use cbp_experiments::{
-    SimPointPhase, SimPointResult, TraceFileDecoder, TraceFileEncoder, create_inst_index_mapping,
-    get_inst_index, get_tqdm_style,
+    SimPointPhase, SimPointResult, TraceFileDecoder, TraceFileEncoder,
+    create_inst_index_mapping_from_images, get_inst_index, get_tqdm_style,
 };
 use clap::Parser;
 use indicatif::ProgressIterator;
@@ -20,10 +20,6 @@ struct Cli {
     /// Path to trace file
     #[arg(short, long)]
     trace_path: PathBuf,
-
-    /// Path to executable file
-    #[arg(short, long)]
-    exe_path: PathBuf,
 
     /// SimPoint slice size in instructions
     #[arg(short, long)]
@@ -103,7 +99,7 @@ fn main() -> anyhow::Result<()> {
     );
 
     // create a mapping from instruction address to instruction index for instruction counting
-    let mapping = create_inst_index_mapping(&args.exe_path)?;
+    let mapping = create_inst_index_mapping_from_images(&file.images)?;
 
     let mut branch_infos = vec![BranchInfo::default(); file.num_brs];
 
@@ -312,6 +308,8 @@ fn main() -> anyhow::Result<()> {
         let mut encoder = TraceFileEncoder::open(trace_file)?;
         // for simplicity, copy all branches instead of re-creating one on the fly
         encoder.branches = file.branches.to_vec();
+        // clone images
+        encoder.images = file.images.to_vec();
         encoders.push(encoder);
     }
 
@@ -372,7 +370,6 @@ fn main() -> anyhow::Result<()> {
 
     let result = SimPointResult {
         trace_path: args.trace_path.clone(),
-        exe_path: args.exe_path.clone(),
         size: args.size,
         total_instructions,
         phases,

@@ -82,16 +82,14 @@ enum Commands {
 
 #[derive(Clone, Deserialize)]
 struct Command {
-    /// Command line args
-    args: String,
+    /// Command to run
+    command: String,
 }
 
 #[derive(Clone, Deserialize)]
 struct Benchmark {
     /// Benchmark name
     name: String,
-    /// Path to its executable
-    executable: String,
     /// Path to its data folder
     data: Option<PathBuf>,
     /// It may contain multiple commands to run
@@ -177,11 +175,10 @@ fn main() -> anyhow::Result<()> {
 
                     let trace_file = dir.join(format!("{}-{}.log", benchmark.name, command_index));
                     println!(
-                        "Generate trace file {} using {}: {} {}",
+                        "Generate trace file {} using {}: {}",
                         trace_file.display(),
                         tracer_name,
-                        benchmark.executable,
-                        command.args
+                        command.command
                     );
 
                     let stdout_file =
@@ -192,7 +189,10 @@ fn main() -> anyhow::Result<()> {
                     println!("Stderr is logged to {}", stderr_file.display());
 
                     // resolve executable path before changing cwd
-                    let exe_path = benchmark.executable.resolve();
+                    let mut parts = command.command.split_whitespace();
+                    let executable = parts.next().unwrap();
+                    let args = parts.collect::<Vec<_>>().join(" ");
+                    let exe_path = executable.resolve();
                     match tracer {
                         Tracer::Pin => {
                             let args = format!(
@@ -200,7 +200,7 @@ fn main() -> anyhow::Result<()> {
                                 cwd.join("tracers/pin/obj-intel64/brtrace.so").display(),
                                 cwd.join(&trace_file).display(),
                                 exe_path.display(),
-                                command.args
+                                args
                             );
                             println!("Running {} under {}", args, tmp_dir.path().display());
                             let result = std::process::Command::new("sh")
@@ -219,7 +219,7 @@ fn main() -> anyhow::Result<()> {
                                 cwd.join("tracers/dynamorio/build/libbrtrace.so").display(),
                                 cwd.join(&trace_file).display(),
                                 exe_path.display(),
-                                command.args
+                                args
                             );
                             println!("Running {}", args);
                             let result = std::process::Command::new("sh")
@@ -240,7 +240,7 @@ fn main() -> anyhow::Result<()> {
                                 "time numactl -C 0 perf record -e intel_pt//u -o {} -- {} {}",
                                 cwd.join(&perf_data_file).display(),
                                 exe_path.display(),
-                                command.args
+                                args
                             );
                             println!("Running {}", args);
                             let result = std::process::Command::new("sh")
@@ -303,9 +303,8 @@ fn main() -> anyhow::Result<()> {
                     println!("Displaying info for {}", trace_file.display());
 
                     let args = format!(
-                        "target/release/trace_info --trace-path {} --exe-path {}",
+                        "target/release/trace_info --trace-path {}",
                         trace_file.display(),
-                        benchmark.executable,
                     );
                     println!("Running {}", args);
                     let result = std::process::Command::new("sh")
@@ -340,9 +339,8 @@ fn main() -> anyhow::Result<()> {
                     let output_prefix = dir.join(format!("{}-{}", benchmark.name, command_index));
 
                     let args = format!(
-                        "target/release/simpoint --trace-path {} --exe-path {} --size {} --output-prefix {}",
+                        "target/release/simpoint --trace-path {} --size {} --output-prefix {}",
                         trace_file.display(),
-                        benchmark.executable,
                         size,
                         output_prefix.display()
                     );
@@ -410,10 +408,9 @@ fn main() -> anyhow::Result<()> {
                             benchmark.name, command_index, simpoint_index
                         ));
                         let args = format!(
-                            "target/release/simulate --trace-path {} --predictor {} --exe-path {} --skip 0 --warmup {} --simulate {} --output-path {}",
+                            "target/release/simulate --trace-path {} --predictor {} --skip 0 --warmup {} --simulate {} --output-path {}",
                             trace_file.display(),
                             predictor,
-                            benchmark.executable,
                             // half for warmup, half for simulate
                             simpoint_config.size / 2,
                             simpoint_config.size / 2,
