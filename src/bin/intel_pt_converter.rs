@@ -3,14 +3,13 @@
 use cbp_experiments::{BranchType, Image, TraceFileEncoder, find_branches, get_tqdm_style};
 use clap::Parser;
 use indicatif::ProgressBar;
-use log::{log_enabled, trace, Level};
+use log::{Level, log_enabled, trace};
 use memmap::{Mmap, MmapOptions};
 use object::{Object, ObjectKind, elf, read::elf::ProgramHeader};
 use std::{
     collections::VecDeque,
     fs::File,
     path::{Path, PathBuf},
-    usize,
 };
 
 #[derive(Parser)]
@@ -236,7 +235,7 @@ pub struct PerfDataIterator {
 
 pub enum PerfDataEntry {
     /// mmap-ed image
-    Image(Image),
+    Image(Box<Image>),
     /// Intel PT packet
     IntelPT(Vec<Packet>),
 }
@@ -297,11 +296,11 @@ impl Iterator for PerfDataIterator {
                 filename.copy_from_slice(&self.content[self.offset + 72..self.offset + 328]);
 
                 self.offset += event_size as usize;
-                return Some(PerfDataEntry::Image(Image {
+                return Some(PerfDataEntry::Image(Box::new(Image {
                     start: start - offset,
                     len: len + offset,
                     filename,
-                }));
+                })));
             } else {
                 // not interested
                 self.offset += event_size as usize;
@@ -452,7 +451,7 @@ fn main() -> anyhow::Result<()> {
                     image.start,
                     image.start + image.len
                 );
-                output_trace.images.push(image);
+                output_trace.images.push(*image);
 
                 // parse instructions in the image
                 if image_filename == "[vdso]" {

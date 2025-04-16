@@ -64,7 +64,7 @@ fn main() -> anyhow::Result<()> {
     let mut predictor_mut = predictor.as_mut().unwrap();
 
     // create a mapping from instruction address to instruction index for instruction counting
-    let mapping = create_inst_index_mapping_from_images(&file.images)?;
+    let mapping = create_inst_index_mapping_from_images(file.images)?;
 
     let mut branch_infos = vec![BranchInfo::default(); file.num_brs];
 
