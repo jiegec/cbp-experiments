@@ -26,7 +26,7 @@ cargo run --release --bin benchmark -- simpoint --config-name leela --size 10000
 cargo run --release --bin benchmark -- simulate --config-name leela --predictor AndreSeznec-TAGE-SC-L-8KB
 ```
 
-Example #2 dynamically linked binary:
+Example #2 some dynamically linked binaries:
 
 ```shell
 cargo run --release --bin benchmark -- record --config-name test --tracer intel-pt 

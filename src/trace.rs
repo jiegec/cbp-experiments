@@ -171,6 +171,8 @@ impl<'a> TraceFileDecoder<'a> {
     }
 
     // find corresponding image & offset
+    // TODO: this reports the file offset, instead of virtual address
+    // for statically linked executables, it differs by 0x400000
     pub fn get_addr_location(&self, addr: u64) -> anyhow::Result<String> {
         for image in self.images {
             if addr >= image.start && addr < image.start + image.len {

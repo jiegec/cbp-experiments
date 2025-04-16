@@ -2,12 +2,19 @@
     "benchmarks": [{
         "name": "ls",
         "commands": [{
-            "command": "/bin/ls ."
+            "command": "/usr/bin/ls ."
         }]
     }, {
         "name": "cat",
         "commands": [{
             "command": "/usr/bin/cat /proc/self/maps"
+        }]
+    }, {
+        "name": "stress",
+        "commands": [{
+            "command": "/usr/bin/stress --cpu 1 --timeout 1s"
+        }, {
+            "command": "/usr/bin/stress --cpu 1 --timeout 2s"
         }]
     }]
 }

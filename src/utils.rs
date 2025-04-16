@@ -98,7 +98,11 @@ pub fn create_inst_index_mapping_from_images(
         assert_eq!(mapping.insert(addr, i), None);
         i += 1;
     }
-    println!("Found {} instructions from {} images", i, images.len());
+    println!(
+        "Found {} static instructions from {} images",
+        i,
+        images.len()
+    );
     Ok(mapping)
 }
 
