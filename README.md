@@ -41,3 +41,7 @@ Configuration hierarchy:
 2. benchmark, e.g. `leela`
 3. command, e.g. `leela ref.sgf`
 4. simpoint, e.g. the first simpoint phase of `leela ref.sgf`
+
+Caveat:
+
+1. fork breaks intel pt converter due to missing filtering of events from child processes

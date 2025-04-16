@@ -553,6 +553,7 @@ fn main() -> anyhow::Result<()> {
                 }
 
                 for packet in packets {
+                    trace!("Handling packet {:x?}", packet);
                     match packet {
                         Packet::TNT(tnt) => {
                             for bit in (tnt.new_bit..=tnt.old_bit).rev() {
