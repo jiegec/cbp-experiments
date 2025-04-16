@@ -10,6 +10,7 @@ use std::{
     fs::{File, create_dir_all},
     path::PathBuf,
     process::Stdio,
+    time::Instant,
 };
 use tempdir::TempDir;
 
@@ -112,17 +113,23 @@ fn get_tracer_name(tracer: &Option<Tracer>) -> String {
     }
 }
 
+fn run_in_shell(cmd: &str) -> anyhow::Result<()> {
+    println!("Running {}", cmd);
+    let time = Instant::now();
+    let result = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(cmd)
+        .status()?;
+    assert!(result.success());
+    println!("Finished running {} in {:?}", cmd, time.elapsed());
+    Ok(())
+}
+
 fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
 
     // in case we have updated the source code
-    let sh_args = "cargo build --release";
-    println!("Running {}", sh_args);
-    let result = std::process::Command::new("sh")
-        .arg("-c")
-        .arg(sh_args)
-        .status()?;
-    assert!(result.success());
+    run_in_shell("cargo build --release")?;
 
     let cwd = std::env::current_dir()?;
 
@@ -160,12 +167,7 @@ fn main() -> anyhow::Result<()> {
                             cwd.join(data_path).display(),
                             tmp_dir.path().display()
                         );
-                        println!("Running {}", args);
-                        let result = std::process::Command::new("sh")
-                            .arg("-c")
-                            .arg(args)
-                            .status()?;
-                        assert!(result.success());
+                        run_in_shell(&args)?;
                     }
 
                     // run: "{benchmark.executable} {command.args}"
@@ -203,6 +205,8 @@ fn main() -> anyhow::Result<()> {
                                 args
                             );
                             println!("Running {} under {}", args, tmp_dir.path().display());
+
+                            let time = Instant::now();
                             let result = std::process::Command::new("sh")
                                 .arg("-c")
                                 .arg(args)
@@ -212,6 +216,7 @@ fn main() -> anyhow::Result<()> {
                                 .stderr(File::create(stderr_file)?)
                                 .status()?;
                             assert!(result.success());
+                            println!("Finished in {:?}", time.elapsed());
                         }
                         Tracer::DynamoRIO => {
                             let args = format!(
@@ -221,7 +226,9 @@ fn main() -> anyhow::Result<()> {
                                 exe_path.display(),
                                 args
                             );
-                            println!("Running {}", args);
+                            println!("Running {} under {}", args, tmp_dir.path().display());
+
+                            let time = Instant::now();
                             let result = std::process::Command::new("sh")
                                 .arg("-c")
                                 .arg(args)
@@ -231,6 +238,7 @@ fn main() -> anyhow::Result<()> {
                                 .current_dir(tmp_dir.path())
                                 .status()?;
                             assert!(result.success());
+                            println!("Finished in {:?}", time.elapsed());
                         }
                         Tracer::IntelPT => {
                             // record intel pt
@@ -242,7 +250,9 @@ fn main() -> anyhow::Result<()> {
                                 exe_path.display(),
                                 args
                             );
-                            println!("Running {}", args);
+                            println!("Running {} under {}", args, tmp_dir.path().display());
+
+                            let time = Instant::now();
                             let result = std::process::Command::new("sh")
                                 .arg("-c")
                                 .arg(args)
@@ -252,6 +262,7 @@ fn main() -> anyhow::Result<()> {
                                 .current_dir(tmp_dir.path())
                                 .status()?;
                             assert!(result.success());
+                            println!("Finished in {:?}", time.elapsed());
 
                             // conversion
                             let args = format!(
@@ -259,12 +270,7 @@ fn main() -> anyhow::Result<()> {
                                 perf_data_file.display(),
                                 trace_file.display(),
                             );
-                            println!("Running {}", args);
-                            let result = std::process::Command::new("sh")
-                                .arg("-c")
-                                .arg(args)
-                                .status()?;
-                            assert!(result.success());
+                            run_in_shell(&args)?;
                         }
                     }
 
@@ -306,12 +312,7 @@ fn main() -> anyhow::Result<()> {
                         "target/release/trace_info --trace-path {}",
                         trace_file.display(),
                     );
-                    println!("Running {}", args);
-                    let result = std::process::Command::new("sh")
-                        .arg("-c")
-                        .arg(args)
-                        .status()?;
-                    assert!(result.success());
+                    run_in_shell(&args)?;
                 }
             }
         }
@@ -344,12 +345,7 @@ fn main() -> anyhow::Result<()> {
                         size,
                         output_prefix.display()
                     );
-                    println!("Running {}", args);
-                    let result = std::process::Command::new("sh")
-                        .arg("-c")
-                        .arg(args)
-                        .status()?;
-                    assert!(result.success());
+                    run_in_shell(&args)?;
                 }
             }
         }
@@ -416,12 +412,7 @@ fn main() -> anyhow::Result<()> {
                             simpoint_config.size / 2,
                             output_file.display()
                         );
-                        println!("Running {}", args);
-                        let result = std::process::Command::new("sh")
-                            .arg("-c")
-                            .arg(args)
-                            .status()?;
-                        assert!(result.success());
+                        run_in_shell(&args)?;
                     }
 
                     // combine results of simulations
@@ -436,12 +427,7 @@ fn main() -> anyhow::Result<()> {
                             .display(),
                         per_simpoint_dir.display(),
                     );
-                    println!("Running {}", args);
-                    let result = std::process::Command::new("sh")
-                        .arg("-c")
-                        .arg(args)
-                        .status()?;
-                    assert!(result.success());
+                    run_in_shell(&args)?;
                 }
 
                 // combine results of different commands
@@ -460,12 +446,7 @@ fn main() -> anyhow::Result<()> {
                     output_file.display(),
                     paths.join(" ")
                 );
-                println!("Running {}", args);
-                let result = std::process::Command::new("sh")
-                    .arg("-c")
-                    .arg(args)
-                    .status()?;
-                assert!(result.success());
+                run_in_shell(&args)?;
             }
         }
     }

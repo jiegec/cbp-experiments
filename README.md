@@ -17,6 +17,15 @@ Run experiments:
 4. Run branch prediction: `cargo run --release --bin benchmark -- simulate --config-name [config] --predictor [predictor]`
 5. Find results under: `benchmarks/[config]/[simulate]/[datetime]-[predictor]/per-benchmark`
 
+Example:
+
+```shell
+cargo run --release --bin benchmark -- record --config-name leela --tracer intel-pt 
+cargo run --release --bin benchmark -- info --config-name leela
+cargo run --release --bin benchmark -- simpoint --config-name leela --size 100000000
+cargo run --release --bin benchmark -- simulate --config-name leela --predictor AndreSeznec-TAGE-SC-L-8KB
+```
+
 Configuration hierarchy:
 
 1. config, e.g. `spec-int-2017-rate-1`
