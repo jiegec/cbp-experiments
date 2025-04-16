@@ -3,7 +3,7 @@
 use cbp_experiments::{BranchType, Image, TraceFileEncoder, find_branches, get_tqdm_style};
 use clap::Parser;
 use indicatif::ProgressBar;
-use log::trace;
+use log::{log_enabled, trace, Level};
 use memmap::{Mmap, MmapOptions};
 use object::{Object, ObjectKind, elf, read::elf::ProgramHeader};
 use std::{
@@ -417,8 +417,10 @@ fn main() -> anyhow::Result<()> {
             )
         };
 
-    let trace =
-        |output_trace: &TraceFileEncoder<'_>, branches: &Vec<BranchInfo>, branch_index: usize| {
+    let trace = |output_trace: &TraceFileEncoder<'_>,
+                 branches: &Vec<BranchInfo>,
+                 branch_index: usize| {
+        if log_enabled!(Level::Trace) {
             let pc = branches[branch_index].inst_addr;
             let mut addr = format!("unknown:0x{:x}", pc);
             for image in &output_trace.images {
@@ -427,7 +429,8 @@ fn main() -> anyhow::Result<()> {
                 }
             }
             trace!("PC = 0x{:x} ({})", branches[branch_index].inst_addr, addr);
-        };
+        }
+    };
 
     // interpreter for executable
     let mut interpreter = None;
