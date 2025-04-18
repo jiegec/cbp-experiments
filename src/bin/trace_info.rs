@@ -6,8 +6,10 @@ use cbp_experiments::{
 use clap::Parser;
 use cli_table::{Cell, Table, print_stdout};
 use log::{Level, log_enabled, trace};
+use memmap::MmapOptions;
 use size::Size;
 use std::collections::HashMap;
+use std::fs::File;
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -30,7 +32,8 @@ fn main() -> anyhow::Result<()> {
     env_logger::init();
 
     let args = Cli::parse();
-    let content = std::fs::read(args.trace_path)?;
+    let file = File::open(&args.trace_path)?;
+    let content = unsafe { MmapOptions::new().map(&file)? };
     // parse trace file
     let file = TraceFileDecoder::open(&content);
     println!(
