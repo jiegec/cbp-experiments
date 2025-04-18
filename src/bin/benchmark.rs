@@ -83,9 +83,6 @@ enum Commands {
 
 #[derive(Clone, Deserialize)]
 struct Command {
-    /// Command to prepare input
-    prepare: Option<String>,
-
     /// Command to run
     command: String,
 }
@@ -96,6 +93,8 @@ struct Benchmark {
     name: String,
     /// Path to its data folder
     data: Option<PathBuf>,
+    /// Command to prepare input
+    prepare: Option<String>,
     /// It may contain multiple commands to run
     commands: Vec<Command>,
 }
@@ -158,58 +157,53 @@ fn main() -> anyhow::Result<()> {
             }
 
             for benchmark in &config.benchmarks {
+                // create a temporary folder to run the benchmark
+                // run all commands in the same folder
+
+                let tmp_dir = TempDir::new("cbp-experiments")?;
+
+                // copy files under data to tmp_dir
+                if let Some(data_path) = &benchmark.data {
+                    let args = format!(
+                        "rsync -avz --progress {}/ {}/",
+                        cwd.join(data_path).display(),
+                        tmp_dir.path().display()
+                    );
+                    run_in_shell(&args)?;
+                }
+
+                let dir = get_trace_dir(config_name, tracer_name);
+                std::fs::create_dir_all(&dir)?;
+
+                // run custom command for preparation
+                if let Some(prepare) = &benchmark.prepare {
+                    // resolve executable path before changing cwd
+                    let mut parts = prepare.split_whitespace();
+                    let executable = parts.next().unwrap();
+                    let args = parts.collect::<Vec<_>>().join(" ");
+                    let exe_path = executable.resolve();
+
+                    let stdout_file = dir.join(format!("{}-prepare-stdout.log", benchmark.name,));
+                    let stderr_file = dir.join(format!("{}-prepare-stderr.log", benchmark.name));
+                    println!("Stdout is logged to {}", stdout_file.display());
+                    println!("Stderr is logged to {}", stderr_file.display());
+
+                    let args = format!("{} {}", exe_path.display(), args);
+                    println!("Running {} under {}", args, tmp_dir.path().display());
+
+                    let time = Instant::now();
+                    let result = std::process::Command::new("sh")
+                        .arg("-c")
+                        .arg(args)
+                        .current_dir(tmp_dir.path())
+                        .stdout(File::create(stdout_file)?)
+                        .stderr(File::create(stderr_file)?)
+                        .status()?;
+                    assert!(result.success());
+                    println!("Finished in {:?}", time.elapsed());
+                }
+
                 for (command_index, command) in benchmark.commands.iter().enumerate() {
-                    // create a temporary folder to run the benchmark
-
-                    let tmp_dir = TempDir::new("cbp-experiments")?;
-
-                    // copy files under data to tmp_dir
-                    if let Some(data_path) = &benchmark.data {
-                        let args = format!(
-                            "rsync -avz --progress {}/ {}/",
-                            cwd.join(data_path).display(),
-                            tmp_dir.path().display()
-                        );
-                        run_in_shell(&args)?;
-                    }
-
-                    let dir = get_trace_dir(config_name, tracer_name);
-                    std::fs::create_dir_all(&dir)?;
-
-                    // run custom command for preparation
-                    if let Some(prepare) = &command.prepare {
-                        // resolve executable path before changing cwd
-                        let mut parts = prepare.split_whitespace();
-                        let executable = parts.next().unwrap();
-                        let args = parts.collect::<Vec<_>>().join(" ");
-                        let exe_path = executable.resolve();
-
-                        let stdout_file = dir.join(format!(
-                            "{}-{}-prepare-stdout.log",
-                            benchmark.name, command_index
-                        ));
-                        let stderr_file = dir.join(format!(
-                            "{}-{}-prepare-stderr.log",
-                            benchmark.name, command_index
-                        ));
-                        println!("Stdout is logged to {}", stdout_file.display());
-                        println!("Stderr is logged to {}", stderr_file.display());
-
-                        let args = format!("{} {}", exe_path.display(), args);
-                        println!("Running {} under {}", args, tmp_dir.path().display());
-
-                        let time = Instant::now();
-                        let result = std::process::Command::new("sh")
-                            .arg("-c")
-                            .arg(args)
-                            .current_dir(tmp_dir.path())
-                            .stdout(File::create(stdout_file)?)
-                            .stderr(File::create(stderr_file)?)
-                            .status()?;
-                        assert!(result.success());
-                        println!("Finished in {:?}", time.elapsed());
-                    }
-
                     // run: "{benchmark.executable} {command.args}"
                     // generate trace file at "{trace_dir}/{benchmark.name}-{command_index}.log"
                     let trace_file = dir.join(format!("{}-{}.log", benchmark.name, command_index));

@@ -44,14 +44,12 @@
     }, {
         "name": "525.x264_r",
         "data": "spec2017/data/525.x264_r",
+        "prepare": "spec2017/build/525.x264_r/ldecod_r -i BuckBunny.264 -o BuckBunny.yuv",
         "commands": [{
-            "prepare": "spec2017/build/525.x264_r/ldecod_r -i BuckBunny.264 -o BuckBunny.yuv",
             "command": "spec2017/build/525.x264_r/525.x264_r --pass 1 --stats x264_stats.log --bitrate 1000 --frames 1000 -o BuckBunny_New.264 BuckBunny.yuv 1280x720"
         }, {
-            "prepare": "spec2017/build/525.x264_r/ldecod_r -i BuckBunny.264 -o BuckBunny.yuv",
             "command": "spec2017/build/525.x264_r/525.x264_r --pass 2 --stats x264_stats.log --bitrate 1000 --dumpyuv 200 --frames 1000 -o BuckBunny_New.264 BuckBunny.yuv 1280x720"
         }, {
-            "prepare": "spec2017/build/525.x264_r/ldecod_r -i BuckBunny.264 -o BuckBunny.yuv",
             "command": "spec2017/build/525.x264_r/525.x264_r --seek 500 --dumpyuv 200 --frames 1250 -o BuckBunny_New.264 BuckBunny.yuv 1280x720"
         }]
     }, {
