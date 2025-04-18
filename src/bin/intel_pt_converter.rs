@@ -9,6 +9,7 @@ use object::{Object, ObjectKind, elf, read::elf::ProgramHeader};
 use std::{
     collections::VecDeque,
     fs::File,
+    io::{BufWriter, Write},
     path::{Path, PathBuf},
 };
 
@@ -22,6 +23,10 @@ struct Cli {
     /// Path to output trace file
     #[arg(short, long)]
     output_path: PathBuf,
+
+    /// Path to taken branch trace
+    #[arg(short, long)]
+    taken_trace_path: Option<PathBuf>,
 }
 
 // for IP Compression
@@ -351,6 +356,11 @@ fn main() -> anyhow::Result<()> {
     env_logger::init();
     let args = Cli::parse();
 
+    let mut taken_trace = match &args.taken_trace_path {
+        Some(path) => Some(BufWriter::new(File::create(path)?)),
+        None => None,
+    };
+
     let mut branches: Vec<BranchInfo> = vec![];
 
     // find the first branch that appears after or equal to the target address
@@ -384,6 +394,13 @@ fn main() -> anyhow::Result<()> {
 
     // Maintain branch index in output file as optimization
     let mut output_branch_indices: Vec<Option<usize>> = vec![];
+
+    // record taken branch for debugging purpose
+    let mut record_taken = |inst_addr: u64, targ_addr: u64| {
+        if let Some(file) = &mut taken_trace {
+            writeln!(file, "{:x} => {:x}", inst_addr, targ_addr).unwrap();
+        }
+    };
 
     // record direct branch, eligible for caching branch index in output trace
     let record_direct = |output_trace: &mut TraceFileEncoder,
@@ -574,6 +591,10 @@ fn main() -> anyhow::Result<()> {
 
                                             if taken {
                                                 // taken path
+                                                record_taken(
+                                                    branch.inst_addr,
+                                                    branch.targ_addr.unwrap(),
+                                                );
                                                 branch_index =
                                                     branch.targ_addr_branch_index.unwrap();
                                             } else {
@@ -597,6 +618,7 @@ fn main() -> anyhow::Result<()> {
                                             record_indirect(&mut output_trace, branch, target_ip)?;
 
                                             // go to target address
+                                            record_taken(branch.inst_addr, target_ip);
                                             branch_index = target_branch_index;
                                             trace(&output_trace, &branches, branch_index);
 
@@ -620,6 +642,10 @@ fn main() -> anyhow::Result<()> {
                                             )?;
 
                                             // go to target address
+                                            record_taken(
+                                                branch.inst_addr,
+                                                branch.targ_addr.unwrap(),
+                                            );
                                             branch_index = branch.targ_addr_branch_index.unwrap();
                                             trace(&output_trace, &branches, branch_index);
                                         }
@@ -632,6 +658,10 @@ fn main() -> anyhow::Result<()> {
                                             )?;
 
                                             // go to target address
+                                            record_taken(
+                                                branch.inst_addr,
+                                                branch.targ_addr.unwrap(),
+                                            );
                                             branch_index = branch.targ_addr_branch_index.unwrap();
                                             trace(&output_trace, &branches, branch_index);
                                         }
@@ -654,6 +684,7 @@ fn main() -> anyhow::Result<()> {
                                         record_indirect(&mut output_trace, branch, tip.target_ip)?;
 
                                         // find branch @ target address
+                                        record_taken(branch.inst_addr, tip.target_ip);
                                         branch_index = find_branch_by_pc(&branches, tip.target_ip);
                                         trace(&output_trace, &branches, branch_index);
 
@@ -679,6 +710,7 @@ fn main() -> anyhow::Result<()> {
                                         }
 
                                         // go to target address
+                                        record_taken(branch.inst_addr, branch.targ_addr.unwrap());
                                         branch_index = branch.targ_addr_branch_index.unwrap();
                                         trace(&output_trace, &branches, branch_index);
                                     }
@@ -695,6 +727,7 @@ fn main() -> anyhow::Result<()> {
                                         }
 
                                         // find branch @ target address
+                                        record_taken(branch.inst_addr, tip.target_ip);
                                         branch_index = find_branch_by_pc(&branches, tip.target_ip);
                                         trace(&output_trace, &branches, branch_index);
                                         break;
@@ -703,6 +736,7 @@ fn main() -> anyhow::Result<()> {
                                         record_indirect(&mut output_trace, branch, tip.target_ip)?;
 
                                         // find branch @ target address
+                                        record_taken(branch.inst_addr, tip.target_ip);
                                         branch_index = find_branch_by_pc(&branches, tip.target_ip);
                                         trace(&output_trace, &branches, branch_index);
                                         break;
@@ -716,6 +750,7 @@ fn main() -> anyhow::Result<()> {
                                         )?;
 
                                         // go to target address
+                                        record_taken(branch.inst_addr, branch.targ_addr.unwrap());
                                         branch_index = branch.targ_addr_branch_index.unwrap();
                                         trace(&output_trace, &branches, branch_index);
                                     }

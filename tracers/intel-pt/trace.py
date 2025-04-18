@@ -9,7 +9,7 @@ for line in sys.stdin:
     if from_addr == "0":
         continue
     idx = parts.index("=>")
-    to_addr = parts[idx+1]
+    to_addr = parts[idx + 1]
     if to_addr == "0":
         continue
-    print(from_addr, to_addr)
+    print(from_addr, "=>", to_addr)
