@@ -6,6 +6,7 @@ use cbp_experiments::{
 use clap::Parser;
 use cli_table::{Cell, Table, print_stdout};
 use log::{Level, log_enabled, trace};
+use size::Size;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -33,12 +34,13 @@ fn main() -> anyhow::Result<()> {
     // parse trace file
     let file = TraceFileDecoder::open(&content);
     println!(
-        "Got {} branches, {}({:.2e}, {:.2} bit/entry) entries and {} images",
+        "Got {} branches, {}({:.2e}, {:.2} bit/entry) entries and {} images from {} trace",
         file.num_brs,
         file.num_entries,
         file.num_entries,
         content.len() as f64 * 8.0 / file.num_entries as f64,
-        file.num_images
+        file.num_images,
+        Size::from_bytes(content.len())
     );
 
     println!("Loaded images:");
