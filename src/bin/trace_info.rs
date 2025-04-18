@@ -33,8 +33,12 @@ fn main() -> anyhow::Result<()> {
     // parse trace file
     let file = TraceFileDecoder::open(&content);
     println!(
-        "Got {} branches, {} entries and {} images",
-        file.num_brs, file.num_entries, file.num_images
+        "Got {} branches, {}({:.2e}, {:.2} bit/entry) entries and {} images",
+        file.num_brs,
+        file.num_entries,
+        file.num_entries,
+        content.len() as f64 * 8.0 / file.num_entries as f64,
+        file.num_images
     );
 
     println!("Loaded images:");
