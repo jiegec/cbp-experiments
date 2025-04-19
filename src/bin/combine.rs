@@ -1,6 +1,6 @@
 //! Combine simulation results of multiple SimPoint phases
 use cbp_experiments::{
-    Branch, BranchType, SimPointResult, SimulateResult, SimulateResultBranchInfo,
+    Branch, BranchType, ParsedImage, SimPointResult, SimulateResult, SimulateResultBranchInfo,
 };
 use clap::{Parser, Subcommand};
 use cli_table::{Cell, Table, print_stdout};
@@ -44,7 +44,7 @@ fn main() -> anyhow::Result<()> {
     // combined result
     let mut branch_info: Vec<SimulateResultBranchInfo> = vec![];
     let mut predictor = String::new();
-    let mut images = vec![];
+    let mut images: Vec<ParsedImage> = vec![];
     let trace_path: Option<PathBuf>;
 
     // tuple of (input file, weight)
@@ -97,7 +97,16 @@ fn main() -> anyhow::Result<()> {
             assert_eq!(predictor, simulate_result.predictor);
         }
         if !images.is_empty() {
-            assert_eq!(images, simulate_result.images);
+            // generate warning if images differs, it is okay if it is a dynamic library or vdso
+            if images != simulate_result.images {
+                println!("WARNING: Found mismatched images:");
+                for image in &images {
+                    println!("LEFT : {} at 0x{:x}", image.filename, image.start);
+                }
+                for image in &simulate_result.images {
+                    println!("RIGHT: {} at 0x{:x}", image.filename, image.start);
+                }
+            }
         }
         predictor = simulate_result.predictor;
         images = simulate_result.images;
@@ -216,7 +225,8 @@ fn main() -> anyhow::Result<()> {
         total_br_execution_count,
         total_cond_execution_count,
         cmpki,
-        cond_branch_prediction_accuracy,
+        // handle NaN
+        cond_branch_prediction_accuracy: Some(cond_branch_prediction_accuracy),
     };
 
     println!("Combined result written to {}", args.output_path.display());

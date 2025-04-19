@@ -35,7 +35,7 @@ pub struct SimulateResult {
     /// conditional branch mispredictions per kilo instructions
     pub cmpki: f64,
     /// prediction accuracy of conditional branches (%)
-    pub cond_branch_prediction_accuracy: f64,
+    pub cond_branch_prediction_accuracy: Option<f64>,
 
     /// per-branch statistics
     pub branch_info: Vec<SimulateResultBranchInfo>,

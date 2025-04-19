@@ -345,7 +345,8 @@ fn main() -> anyhow::Result<()> {
             total_br_execution_count,
             total_cond_execution_count,
             cmpki,
-            cond_branch_prediction_accuracy,
+            // handle NaN
+            cond_branch_prediction_accuracy: Some(cond_branch_prediction_accuracy),
         };
         for (info, branch) in &items {
             if info.execution_count > 0 {
