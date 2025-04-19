@@ -11,6 +11,7 @@ use linfa::{
 };
 use linfa_clustering::KMeans;
 use matplotlib::{Matplotlib, MatplotlibOpts, Mpl, Run, commands as c, serde_json::Value};
+use memmap::MmapOptions;
 use ndarray::{Array2, Axis};
 use std::{fs::File, path::PathBuf};
 
@@ -89,7 +90,8 @@ import numpy as np
 
 fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
-    let content = std::fs::read(&args.trace_path)?;
+    let file = File::open(&args.trace_path)?;
+    let content = unsafe { MmapOptions::new().map(&file)? };
 
     // parse trace file
     let file = TraceFileDecoder::open(&content);
