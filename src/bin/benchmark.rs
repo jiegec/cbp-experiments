@@ -7,9 +7,11 @@ use clap::{Parser, Subcommand, ValueEnum};
 use resolve_path::PathResolveExt;
 use serde::Deserialize;
 use std::{
+    collections::VecDeque,
     fs::{File, create_dir_all},
     path::PathBuf,
     process::Stdio,
+    sync::{Arc, Mutex},
     time::Instant,
 };
 use tempdir::TempDir;
@@ -68,6 +70,10 @@ enum Commands {
         /// SimPoint slice size in instructions
         #[arg(short, long)]
         size: u64,
+
+        /// Run in parallel
+        #[arg(short, long, default_value_t = 1)]
+        parallel: usize,
     },
     /// Simulate branch prediction
     Simulate {
@@ -124,6 +130,47 @@ fn run_in_shell(cmd: &str) -> anyhow::Result<()> {
         .status()?;
     assert!(result.success());
     println!("Finished running {} in {:?}", cmd, time.elapsed());
+    Ok(())
+}
+
+fn run_in_parallel<T: Clone + Send + 'static>(
+    args: &[T],
+    parallel: usize,
+    fun: impl Fn(T) -> anyhow::Result<()> + Send + Clone + 'static,
+) -> anyhow::Result<()> {
+    let args = VecDeque::from(args.iter().cloned().collect::<Vec<_>>());
+    println!(
+        "Running {} jobs in {} parallel processes",
+        args.len(),
+        parallel
+    );
+    let lock = Arc::new(Mutex::new(args));
+    let mut threads = vec![];
+    for _ in 0..parallel {
+        let lock_clone = lock.clone();
+        let fun_clone = fun.clone();
+        threads.push(std::thread::spawn(move || {
+            loop {
+                let mut guard = lock_clone.lock().unwrap();
+                match guard.pop_front() {
+                    Some(arg) => {
+                        drop(guard);
+                        if let Err(err) = fun_clone(arg) {
+                            return Err(err);
+                        }
+                    }
+                    None => {
+                        break;
+                    }
+                }
+            }
+            return Ok(());
+        }));
+    }
+
+    for thread in threads {
+        thread.join().unwrap()?;
+    }
     Ok(())
 }
 
@@ -350,16 +397,32 @@ fn main() -> anyhow::Result<()> {
         Commands::SimPoint {
             tracer,
             config_name,
+            parallel,
             size,
         } => {
             let tracer_name = get_tracer_name(tracer);
             let config: Config =
                 serde_json::from_slice(&std::fs::read(get_config_path(config_name))?)?;
 
+            let mut args = vec![];
             for benchmark in &config.benchmarks {
                 for (command_index, _command) in benchmark.commands.iter().enumerate() {
+                    args.push((
+                        config_name.clone(),
+                        tracer_name.clone(),
+                        benchmark.clone(),
+                        command_index,
+                        *size,
+                    ));
+                }
+            }
+
+            run_in_parallel(
+                &args,
+                *parallel,
+                |(config_name, tracer_name, benchmark, command_index, size)| {
                     // trace file at "{trace_dir}/{benchmark.name}-{command_index}.log"
-                    let dir = get_trace_dir(config_name, &tracer_name);
+                    let dir = get_trace_dir(&config_name, &tracer_name);
                     std::fs::create_dir_all(&dir)?;
 
                     let trace_file = dir.join(format!("{}-{}.log", benchmark.name, command_index));
@@ -377,8 +440,9 @@ fn main() -> anyhow::Result<()> {
                         output_prefix.display()
                     );
                     run_in_shell(&args)?;
-                }
-            }
+                    return Ok(());
+                },
+            )?;
         }
         Commands::Simulate {
             config_name,

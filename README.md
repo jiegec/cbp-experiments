@@ -35,6 +35,16 @@ cargo run --release --bin benchmark -- simpoint --config-name test --size 1000
 cargo run --release --bin benchmark -- simulate --config-name test --predictor AndreSeznec-TAGE-SC-L-8KB
 ```
 
+Example #3 full spec int 2017 rate:
+
+```shell
+# it takes 20+ hours
+cargo run --release --bin benchmark -- record --config-name spec-int-2017-rate --tracer pin
+cargo run --release --bin benchmark -- info --config-name spec-int-2017-rate
+cargo run --release --bin benchmark -- simpoint --config-name spec-int-2017-rate --size 100000000
+cargo run --release --bin benchmark -- simulate --config-name spec-int-2017-rate --predictor AndreSeznec-TAGE-SC-L-8KB
+```
+
 Configuration hierarchy:
 
 1. config, e.g. `spec-int-2017-rate-1`

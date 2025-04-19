@@ -17,7 +17,7 @@ pub fn get_tqdm_style() -> indicatif::ProgressStyle {
         .unwrap()
         .with_key(
             "custom_per_sec",
-            Box::new(|s: &indicatif::ProgressState, w: &mut dyn std::fmt::Write| write!(w, "{:.2} it/s", s.per_sec()).unwrap()),
+            Box::new(|s: &indicatif::ProgressState, w: &mut dyn std::fmt::Write| write!(w, "{:.2e} it/s", s.per_sec()).unwrap()),
         ).progress_chars("██ ")
 }
 
