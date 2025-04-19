@@ -85,6 +85,10 @@ enum Commands {
         /// Predictor name
         #[arg(short, long)]
         predictor: String,
+
+        /// Run in parallel
+        #[arg(short, long, default_value_t = 1)]
+        parallel: usize,
     },
 }
 
@@ -450,6 +454,7 @@ fn main() -> anyhow::Result<()> {
         Commands::Simulate {
             config_name,
             predictor,
+            parallel,
         } => {
             let config: Config =
                 serde_json::from_slice(&std::fs::read(get_config_path(config_name))?)?;
@@ -487,31 +492,59 @@ fn main() -> anyhow::Result<()> {
                         serde_json::from_reader(File::open(&simpoint_result_path)?)?;
 
                     // simulate on each simpoint phase
+
+                    let mut args = vec![];
+
                     for (simpoint_index, _phase) in simpoint_config.phases.iter().enumerate() {
-                        // trace file at "{simpoint_dir}/{benchmark.name}-{command_index}-simpoint-{simpoint_index}.log"
-                        let trace_dir = get_simpoint_dir(config_name);
-
-                        let trace_file = trace_dir.join(format!(
-                            "{}-{}-simpoint-{}.log",
-                            benchmark.name, command_index, simpoint_index
+                        args.push((
+                            config_name.clone(),
+                            benchmark.clone(),
+                            command_index,
+                            simpoint_index,
+                            simpoint_config.clone(),
+                            predictor.clone(),
+                            per_simpoint_dir.clone(),
                         ));
-
-                        // simulation result at "{simulate_dir}/per-simpoint/{benchmark.name}-{command_index}-simpoint-{simpoint_index}.log"
-                        let output_file = per_simpoint_dir.join(format!(
-                            "{}-{}-simpoint-{}.log",
-                            benchmark.name, command_index, simpoint_index
-                        ));
-                        let args = format!(
-                            "target/release/simulate --trace-path {} --predictor {} --skip 0 --warmup {} --simulate {} --output-path {}",
-                            trace_file.display(),
-                            predictor,
-                            // half for warmup, half for simulate
-                            simpoint_config.size / 2,
-                            simpoint_config.size / 2,
-                            output_file.display()
-                        );
-                        run_in_shell(&args)?;
                     }
+
+                    run_in_parallel(
+                        &args,
+                        *parallel,
+                        |(
+                            config_name,
+                            benchmark,
+                            command_index,
+                            simpoint_index,
+                            simpoint_config,
+                            predictor,
+                            per_simpoint_dir,
+                        )| {
+                            // trace file at "{simpoint_dir}/{benchmark.name}-{command_index}-simpoint-{simpoint_index}.log"
+                            let trace_dir = get_simpoint_dir(config_name);
+
+                            let trace_file = trace_dir.join(format!(
+                                "{}-{}-simpoint-{}.log",
+                                benchmark.name, command_index, simpoint_index
+                            ));
+
+                            // simulation result at "{simulate_dir}/per-simpoint/{benchmark.name}-{command_index}-simpoint-{simpoint_index}.log"
+                            let output_file = per_simpoint_dir.join(format!(
+                                "{}-{}-simpoint-{}.log",
+                                benchmark.name, command_index, simpoint_index
+                            ));
+                            let args = format!(
+                                "target/release/simulate --trace-path {} --predictor {} --skip 0 --warmup {} --simulate {} --output-path {}",
+                                trace_file.display(),
+                                predictor,
+                                // half for warmup, half for simulate
+                                simpoint_config.size / 2,
+                                simpoint_config.size / 2,
+                                output_file.display()
+                            );
+                            run_in_shell(&args)?;
+                            Ok(())
+                        },
+                    )?;
 
                     // combine results of simulations
                     // combined result at "{simulate_dir}/per-command/{benchmark.name}-{command_index}.log"
