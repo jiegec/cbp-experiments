@@ -39,6 +39,8 @@ Summary:
 
 ## Simulation
 
+MPKI of different predictors:
+
 | benchmark       | TAGE-SC-L 8KB | TAGE-SC-L 64KB |
 |-----------------|---------------|----------------|
 | 500.perlbench_r | 1.00          | 0.72           |
@@ -52,3 +54,9 @@ Summary:
 | 548.exchange2_r | 2.96          | 1.25           |
 | 557.xz_r        | 4.68          | 4.06           |
 | average         | 4.84          | 3.925          |
+
+Accuracy of SimPoint versus full simulation using TAGE-SC-L 8KB:
+
+| Benchmark  | Sub-benchmark | Full MPKI | SimPoint MPKI |
+|------------|---------------|-----------|---------------|
+| 525.x264_r | pass 1        | 0.5162    | 0.5090        |
