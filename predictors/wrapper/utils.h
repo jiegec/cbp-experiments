@@ -15,6 +15,7 @@
 #include <string.h>
 #include <string>
 #include <vector>
+#include "cbp-experiments/src/lib.rs.h"
 
 using namespace std;
 
@@ -71,5 +72,25 @@ static inline UINT32 SatDecrement(UINT32 x) {
     return x - 1;
   return x;
 }
+
+static inline OpType convert_type(branch_type type) {
+  switch (type) {
+  case BranchType::DirectJump:
+    return OPTYPE_JMP_DIRECT_UNCOND;
+  case BranchType::IndirectJump:
+    return OPTYPE_JMP_INDIRECT_UNCOND;
+  case BranchType::DirectCall:
+    return OPTYPE_CALL_DIRECT_UNCOND;
+  case BranchType::IndirectCall:
+    return OPTYPE_CALL_INDIRECT_UNCOND;
+  case BranchType::Return:
+    return OPTYPE_RET_UNCOND;
+  case BranchType::ConditionalDirectJump:
+    return OPTYPE_JMP_DIRECT_COND;
+  default:
+    assert(false);
+  }
+}
+
 
 #endif
