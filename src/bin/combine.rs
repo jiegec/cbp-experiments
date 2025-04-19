@@ -230,7 +230,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     println!("Combined result written to {}", args.output_path.display());
-    std::fs::write(args.output_path, serde_json::to_vec_pretty(&combined)?)?;
+    std::fs::write(args.output_path, serde_json::to_vec(&combined)?)?;
 
     Ok(())
 }
