@@ -4,6 +4,7 @@
 #include "andre_seznec_tage_sc_l_64kb_only_tage.h"
 #include "andre_seznec_tage_sc_l_8kb.h"
 #include "andre_seznec_tage_sc_l_8kb_only_tage.h"
+#include "andre_seznec_unlimited.h"
 #include "cbp-experiments/src/lib.rs.h"
 
 std::unique_ptr<Predictor> new_predictor(rust::Str name) {
@@ -17,6 +18,8 @@ std::unique_ptr<Predictor> new_predictor(rust::Str name) {
     return std::unique_ptr<Predictor>(new AndreSeznecTAGESCL64KBOnlyTAGE);
   } else if (name == "AndreSeznec-TAGE-Cookbook") {
     return std::unique_ptr<Predictor>(new AndreSeznecTAGECookbook);
+  } else if (name == "AndreSeznec-Unlimited") {
+    return std::unique_ptr<Predictor>(new AndreSeznecUnlimited);
   }
   return nullptr;
 }

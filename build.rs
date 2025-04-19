@@ -24,6 +24,7 @@ fn main() {
         .flag("-Wno-unused-variable")
         .flag("-Wno-unused-but-set-variable")
         .flag("-Wno-parentheses")
+        .flag("-Wno-sign-compare")
         .compile("cbp-experiments");
 
     println!("cargo:rerun-if-changed=build.rs");
