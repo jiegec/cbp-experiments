@@ -1,6 +1,7 @@
 #include "interface.h"
 #include "andre_seznec_tage_sc_l_8kb.h"
 #include "andre_seznec_tage_sc_l_64kb.h"
+#include "andre_seznec_tage_sc_l_64kb_only_tage.h"
 #include "cbp-experiments/src/lib.rs.h"
 
 std::unique_ptr<Predictor> new_predictor(rust::Str name) {
@@ -8,6 +9,8 @@ std::unique_ptr<Predictor> new_predictor(rust::Str name) {
     return std::unique_ptr<Predictor>(new AndreSeznecTAGESCL8KB);
   } else if (name == "AndreSeznec-TAGE-SC-L-64KB") {
     return std::unique_ptr<Predictor>(new AndreSeznecTAGESCL64KB);
+  } else if (name == "AndreSeznec-TAGE-SC-L-64KB-Only-TAGE") {
+    return std::unique_ptr<Predictor>(new AndreSeznecTAGESCL64KBOnlyTAGE);
   }
   return nullptr;
 }

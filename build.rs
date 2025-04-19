@@ -3,6 +3,7 @@ fn main() {
         .file("predictors/wrapper/interface.cpp")
         .file("predictors/wrapper/andre_seznec_tage_sc_l_8kb.cpp")
         .file("predictors/wrapper/andre_seznec_tage_sc_l_64kb.cpp")
+        .file("predictors/wrapper/andre_seznec_tage_sc_l_64kb_only_tage.cpp")
         .std("c++14")
         .flag("-Wno-unused-parameter")
         .flag("-Wno-unused-value")
@@ -16,4 +17,5 @@ fn main() {
     println!("cargo:rerun-if-changed=predictors/wrapper/utils.h");
     println!("cargo:rerun-if-changed=predictors/wrapper/andre_seznec_tage_sc_l_8kb.cpp");
     println!("cargo:rerun-if-changed=predictors/wrapper/andre_seznec_tage_sc_l_64kb.cpp");
+    println!("cargo:rerun-if-changed=predictors/wrapper/andre_seznec_tage_sc_l_64kb_only_tage.cpp");
 }
