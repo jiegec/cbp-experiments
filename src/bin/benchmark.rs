@@ -1,4 +1,5 @@
 //! Operations on predefined benchmarks
+use anyhow::bail;
 use cbp_experiments::{
     SimPointResult, get_config_path, get_simpoint_dir, get_simulate_dir, get_trace_dir,
 };
@@ -128,7 +129,9 @@ fn run_in_shell(cmd: &str) -> anyhow::Result<()> {
         .arg("-c")
         .arg(cmd)
         .status()?;
-    assert!(result.success());
+    if !result.success() {
+        bail!("Running command {} failed with {}", cmd, result);
+    }
     println!("Finished running {} in {:?}", cmd, time.elapsed());
     Ok(())
 }
