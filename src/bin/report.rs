@@ -77,9 +77,9 @@ fn main() -> anyhow::Result<()> {
             input_file.file_stem().unwrap().to_str().unwrap().cell(),
             format!("{:.4}", simulate_result.cmpki).cell(),
             format!("{:}", h2p_count).cell(),
-            format!("{:.2}", h2p_mispred_rate).cell(),
-            format!("{:.2}", cond_br_acc).cell(),
-            format!("{:.2}", cond_br_acc_excl_h2p).cell(),
+            format!("{:.2} %", h2p_mispred_rate).cell(),
+            format!("{:.2} %", cond_br_acc).cell(),
+            format!("{:.2} %", cond_br_acc_excl_h2p).cell(),
         ]);
     }
 
@@ -96,17 +96,17 @@ fn main() -> anyhow::Result<()> {
         )
         .cell(),
         format!(
-            "{:.2}",
+            "{:.2} %",
             columns.iter().map(|col| col.2).sum::<f64>() / columns.len() as f64
         )
         .cell(),
         format!(
-            "{:.2}",
+            "{:.2} %",
             columns.iter().map(|col| col.3).sum::<f64>() / columns.len() as f64
         )
         .cell(),
         format!(
-            "{:.2}",
+            "{:.2} %",
             columns.iter().map(|col| col.4).sum::<f64>() / columns.len() as f64
         )
         .cell(),
@@ -115,10 +115,10 @@ fn main() -> anyhow::Result<()> {
     let table = table.table().title(vec![
         "Benchmark".cell(),
         "CMPKI".cell(),
-        "Static H2P br.".cell(),
-        "Misp. (%) due to H2P br.".cell(),
-        "Acc. (%) of cond. br.".cell(),
-        "Acc. (%) of cond. br. excl. H2P".cell(),
+        "# Static H2P br.".cell(),
+        "Misp. due to H2P br.".cell(),
+        "Acc. of cond. br.".cell(),
+        "Acc. of cond. br. excl. H2P".cell(),
     ]);
     print_stdout(table)?;
 
