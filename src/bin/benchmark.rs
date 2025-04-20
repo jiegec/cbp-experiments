@@ -1,8 +1,8 @@
 //! Operations on predefined benchmarks
 use anyhow::bail;
 use cbp_experiments::{
-    SimPointResult, ask_for_config_name, ask_for_simulate_dir, get_config_path, get_simpoint_dir,
-    get_simulate_dir, get_trace_dir,
+    SimPointResult, ask_for_config_name, ask_for_predictor, ask_for_simulate_dir, get_config_path,
+    get_simpoint_dir, get_simulate_dir, get_trace_dir,
 };
 use chrono::Local;
 use clap::{Parser, Subcommand, ValueEnum};
@@ -81,11 +81,11 @@ enum Commands {
     Simulate {
         /// Benchmark config name
         #[arg(short, long)]
-        config_name: PathBuf,
+        config_name: Option<String>,
 
         /// Predictor name
         #[arg(short, long)]
-        predictor: String,
+        predictor: Option<String>,
 
         /// Run in parallel
         #[arg(short, long, default_value_t = 1)]
@@ -463,14 +463,23 @@ fn main() -> anyhow::Result<()> {
             predictor,
             parallel,
         } => {
+            let config_name = match config_name {
+                Some(config_name) => config_name.clone(),
+                None => ask_for_config_name()?,
+            };
             let config: Config =
-                serde_json::from_slice(&std::fs::read(get_config_path(config_name))?)?;
+                serde_json::from_slice(&std::fs::read(get_config_path(&config_name))?)?;
+
+            let predictor = match predictor {
+                Some(predictor) => predictor.clone(),
+                None => ask_for_predictor()?,
+            };
 
             // simulation result under "{simulate_dir}/"
             let simulate_dir = get_simulate_dir(
-                config_name,
+                &config_name,
                 &Local::now().format("%Y%m%d-%H%M%S").to_string(),
-                predictor,
+                &predictor,
             );
             create_dir_all(&simulate_dir)?;
 
@@ -486,7 +495,7 @@ fn main() -> anyhow::Result<()> {
             for benchmark in &config.benchmarks {
                 for (command_index, _command) in benchmark.commands.iter().enumerate() {
                     // simpoint result at "{simpoint_dir}/{benchmark.name}-{command_index}.json"
-                    let dir = get_simpoint_dir(config_name);
+                    let dir = get_simpoint_dir(&config_name);
 
                     let simpoint_result_path =
                         dir.join(format!("{}-{}.json", benchmark.name, command_index));
@@ -560,7 +569,7 @@ fn main() -> anyhow::Result<()> {
                     let args = format!(
                         "target/release/combine --output-path {} simpoint --simpoint-path {} --result-path {}",
                         output_file.display(),
-                        get_simpoint_dir(config_name)
+                        get_simpoint_dir(&config_name)
                             .join(format!("{}-{}.json", benchmark.name, command_index))
                             .display(),
                         per_simpoint_dir.display(),
