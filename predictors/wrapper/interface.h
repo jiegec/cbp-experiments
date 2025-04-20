@@ -1,6 +1,7 @@
 #pragma once
 #include "rust/cxx.h"
 #include <memory>
+#include <vector>
 
 enum class BranchType : uint32_t;
 typedef BranchType branch_type;
@@ -17,3 +18,4 @@ public:
 };
 
 std::unique_ptr<Predictor> new_predictor(rust::Str name);
+std::unique_ptr<std::vector<std::string>> list_predictors();

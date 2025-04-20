@@ -37,6 +37,7 @@ mod ffi {
         type Predictor;
 
         pub fn new_predictor(name: &str) -> UniquePtr<Predictor>;
+        pub fn list_predictors() -> UniquePtr<CxxVector<CxxString>>;
         pub fn get_prediction(self: Pin<&mut Predictor>, pc: u64) -> bool;
         pub fn update_predictor(
             self: Pin<&mut Predictor>,

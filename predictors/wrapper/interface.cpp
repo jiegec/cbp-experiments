@@ -6,20 +6,27 @@
 #include "andre_seznec_tage_sc_l_8kb_only_tage.h"
 #include "andre_seznec_unlimited.h"
 #include "cbp-experiments/src/lib.rs.h"
+#include <memory>
 
 std::unique_ptr<Predictor> new_predictor(rust::Str name) {
-  if (name == "AndreSeznec-TAGE-SC-L-8KB") {
-    return std::unique_ptr<Predictor>(new AndreSeznecTAGESCL8KB);
-  } else if (name == "AndreSeznec-TAGE-SC-L-8KB-Only-TAGE") {
-    return std::unique_ptr<Predictor>(new AndreSeznecTAGESCL8KBOnlyTAGE);
-  } else if (name == "AndreSeznec-TAGE-SC-L-64KB") {
-    return std::unique_ptr<Predictor>(new AndreSeznecTAGESCL64KB);
-  } else if (name == "AndreSeznec-TAGE-SC-L-64KB-Only-TAGE") {
-    return std::unique_ptr<Predictor>(new AndreSeznecTAGESCL64KBOnlyTAGE);
-  } else if (name == "AndreSeznec-TAGE-Cookbook") {
-    return std::unique_ptr<Predictor>(new AndreSeznecTAGECookbook);
-  } else if (name == "AndreSeznec-Unlimited") {
-    return std::unique_ptr<Predictor>(new AndreSeznecUnlimited);
+  if (false) {
   }
+#define PREDICTOR(predictor, class)                                            \
+  else if (name == #predictor) {                                               \
+    return std::unique_ptr<Predictor>(new class);                              \
+  }
+#include "predictors.h"
+#undef PREDICTOR
   return nullptr;
+}
+
+std::unique_ptr<std::vector<std::string>> list_predictors() {
+  std::vector<std::string> result = {
+
+#define PREDICTOR(predictor, class) #predictor,
+#include "predictors.h"
+#undef PREDICTOR
+  };
+  return std::unique_ptr<std::vector<std::string>>(
+      new std::vector<std::string>(result));
 }

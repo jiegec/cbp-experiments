@@ -1,8 +1,8 @@
 //! Operations on predefined benchmarks
 use anyhow::bail;
 use cbp_experiments::{
-    SimPointResult, ask_for_simulate_dir, get_config_path, get_simpoint_dir, get_simulate_dir,
-    get_trace_dir,
+    SimPointResult, ask_for_config_name, ask_for_simulate_dir, get_config_path, get_simpoint_dir,
+    get_simulate_dir, get_trace_dir,
 };
 use chrono::Local;
 use clap::{Parser, Subcommand, ValueEnum};
@@ -95,7 +95,7 @@ enum Commands {
     Report {
         /// Benchmark config name
         #[arg(short, long)]
-        config_name: PathBuf,
+        config_name: Option<String>,
     },
 }
 
@@ -588,8 +588,12 @@ fn main() -> anyhow::Result<()> {
             }
         }
         Commands::Report { config_name } => {
+            let config_name = match config_name {
+                Some(config_name) => config_name.clone(),
+                None => ask_for_config_name()?,
+            };
             let config: Config =
-                serde_json::from_slice(&std::fs::read(get_config_path(config_name))?)?;
+                serde_json::from_slice(&std::fs::read(get_config_path(&config_name))?)?;
 
             let simulate_dir = ask_for_simulate_dir(&config_name)?;
 
