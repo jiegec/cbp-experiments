@@ -22,6 +22,7 @@
 //          \- {benchmark-name}-{command-index}.log -> ../tracer-name/{benchmark-name}-{command-index}.log
 
 use crate::list_predictors;
+use anyhow::bail;
 use skim::{
     Skim,
     prelude::{SkimItemReader, SkimOptionsBuilder},
@@ -75,12 +76,13 @@ fn get_selection(selections: Vec<String>, prompt: &str) -> anyhow::Result<String
     let item_reader = SkimItemReader::default();
     let items = item_reader.of_bufread(Cursor::new(input));
 
-    let selected_items = Skim::run_with(&options, Some(items))
-        .map(|out| out.selected_items)
-        .unwrap_or_else(|| Vec::new());
+    let output = Skim::run_with(&options, Some(items)).unwrap();
+    if output.is_abort {
+        bail!("User cancelled the selection")
+    }
 
-    assert_eq!(selected_items.len(), 1);
-    Ok(selected_items[0].output().to_string())
+    assert_eq!(output.selected_items.len(), 1);
+    Ok(output.selected_items[0].output().to_string())
 }
 
 pub fn ask_for_config_name() -> anyhow::Result<String> {
