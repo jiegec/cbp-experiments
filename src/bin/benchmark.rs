@@ -152,14 +152,14 @@ fn run_in_parallel<T: Clone + Send + 'static>(
     parallel: usize,
     fun: impl Fn(T) -> anyhow::Result<()> + Send + Clone + 'static,
 ) -> anyhow::Result<()> {
-    let args = VecDeque::from(args.iter().cloned().collect::<Vec<_>>());
+    let args = VecDeque::from(args.to_vec());
     println!(
         "Running {} jobs in {} parallel processes",
         args.len(),
         parallel
     );
     let lock = Arc::new(Mutex::new(args));
-    let mut threads = vec![];
+    let mut threads: Vec<std::thread::JoinHandle<Result<(), anyhow::Error>>> = vec![];
     for _ in 0..parallel {
         let lock_clone = lock.clone();
         let fun_clone = fun.clone();
@@ -169,16 +169,14 @@ fn run_in_parallel<T: Clone + Send + 'static>(
                 match guard.pop_front() {
                     Some(arg) => {
                         drop(guard);
-                        if let Err(err) = fun_clone(arg) {
-                            return Err(err);
-                        }
+                        fun_clone(arg)?
                     }
                     None => {
                         break;
                     }
                 }
             }
-            return Ok(());
+            Ok(())
         }));
     }
 
@@ -454,7 +452,7 @@ fn main() -> anyhow::Result<()> {
                         output_prefix.display()
                     );
                     run_in_shell(&args)?;
-                    return Ok(());
+                    Ok(())
                 },
             )?;
         }
