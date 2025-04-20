@@ -1,20 +1,16 @@
 //! Operations on predefined benchmarks
 use anyhow::bail;
 use cbp_experiments::{
-    SimPointResult, get_config_path, get_simpoint_dir, get_simulate_dir, get_trace_dir,
+    SimPointResult, ask_for_simulate_dir, get_config_path, get_simpoint_dir, get_simulate_dir,
+    get_trace_dir,
 };
 use chrono::Local;
 use clap::{Parser, Subcommand, ValueEnum};
 use resolve_path::PathResolveExt;
 use serde::Deserialize;
-use skim::{
-    Skim,
-    prelude::{SkimItemReader, SkimOptionsBuilder},
-};
 use std::{
     collections::VecDeque,
     fs::{File, create_dir_all},
-    io::Cursor,
     path::PathBuf,
     process::Stdio,
     sync::{Arc, Mutex},
@@ -595,49 +591,22 @@ fn main() -> anyhow::Result<()> {
             let config: Config =
                 serde_json::from_slice(&std::fs::read(get_config_path(config_name))?)?;
 
-            // ask user to select a simulation result folder
+            let simulate_dir = ask_for_simulate_dir(&config_name)?;
+
+            // report benchmark results under the path
             let mut paths = vec![];
-            for path in std::fs::read_dir(
-                PathBuf::from("benchmarks")
-                    .join(config_name)
-                    .join("simulate"),
-            )? {
-                let path = path?;
-                paths.push(format!("{}", path.path().display()));
+            for benchmark in &config.benchmarks {
+                paths.push("--simulate-path".to_string());
+                paths.push(format!(
+                    "{}",
+                    PathBuf::from(&simulate_dir)
+                        .join("per-benchmark")
+                        .join(format!("{}.log", benchmark.name))
+                        .display()
+                ));
             }
-            paths.sort();
-            paths.reverse();
-
-            let options = SkimOptionsBuilder::default()
-                .height(String::from("50%"))
-                .multi(true)
-                .build()?;
-
-            let input = paths.join("\n");
-
-            let item_reader = SkimItemReader::default();
-            let items = item_reader.of_bufread(Cursor::new(input));
-
-            let selected_items = Skim::run_with(&options, Some(items))
-                .map(|out| out.selected_items)
-                .unwrap_or_else(|| Vec::new());
-
-            for item in selected_items.iter() {
-                // report benchmark results under the path
-                let mut paths = vec![];
-                for benchmark in &config.benchmarks {
-                    paths.push("--simulate-path".to_string());
-                    paths.push(format!(
-                        "{}",
-                        PathBuf::from(item.output().to_string())
-                            .join("per-benchmark")
-                            .join(format!("{}.log", benchmark.name))
-                            .display()
-                    ));
-                }
-                let args = format!("target/release/report {}", paths.join(" "));
-                run_in_shell(&args)?;
-            }
+            let args = format!("target/release/report {}", paths.join(" "));
+            run_in_shell(&args)?;
         }
     }
 
