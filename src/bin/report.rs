@@ -21,7 +21,7 @@ fn main() -> anyhow::Result<()> {
     for input_file in &args.simulate_path {
         println!("Loading simulation result from {}", input_file.display());
         let simulate_result: SimulateResult =
-            serde_json::from_reader(BufReader::new(File::open(&input_file)?))?;
+            serde_json::from_reader(BufReader::new(File::open(input_file)?))?;
 
         let total_instructions = simulate_result.simulate;
 

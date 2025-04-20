@@ -90,15 +90,12 @@ pub fn ask_for_config_name() -> anyhow::Result<String> {
     for path in std::fs::read_dir(PathBuf::from("benchmarks"))? {
         let path = path?;
         if path.file_type()?.is_dir() {
-            paths.push(format!(
-                "{}",
-                path.path().file_name().unwrap().to_str().unwrap()
-            ));
+            paths.push(path.path().file_name().unwrap().to_str().unwrap().to_string());
         }
     }
     paths.sort();
 
-    Ok(get_selection(paths, "Choose benchmark config: ")?)
+    get_selection(paths, "Choose benchmark config: ")
 }
 
 pub fn ask_for_simulate_dir<P: AsRef<Path>>(config_name: P) -> anyhow::Result<String> {
@@ -114,7 +111,7 @@ pub fn ask_for_simulate_dir<P: AsRef<Path>>(config_name: P) -> anyhow::Result<St
     paths.sort();
     paths.reverse();
 
-    Ok(get_selection(paths, "Choose simulation directory: ")?)
+    get_selection(paths, "Choose simulation directory: ")
 }
 
 pub fn ask_for_predictor() -> anyhow::Result<String> {
@@ -123,5 +120,5 @@ pub fn ask_for_predictor() -> anyhow::Result<String> {
         predictors.push(predictor.to_string());
     }
 
-    Ok(get_selection(predictors, "Choose branch predictor: ")?)
+    get_selection(predictors, "Choose branch predictor: ")
 }
