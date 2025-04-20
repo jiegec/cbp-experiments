@@ -44,3 +44,48 @@ LOOP:
     - 4 bit age
     - 1 bit direction
 - space: 32 * (10 + 10 + 10 + 4 + 4 + 1) = 1248
+
+## TAGE-SC-L 8KB
+
+- TAGE: 58165 bits
+- SC: 8872 bits
+- LOOP: 312 bits
+
+TAGE:
+
+- the banks with longer history lengths:
+    - 17 banks
+    - each bank has 128 entries
+    - each entry has 3 bit counter, 2 bit useful, 12 bit tag
+    - space: 17 * 128 * (3 + 2 + 12) = 36992
+- the banks with shorter history lengths:
+    - 9 banks
+    - each bank has 128 entries
+    - each entry has 3 bit counter, 2 bit useful, 8 bit tag
+    - space: 9 * 128 * (3 + 2 + 8) = 14976
+- base bimodal table: 4096 entries
+    - pred: 1 bit per entry
+    - hyst: 1 bit per 4 entries
+    - space: 4096 * (1 + 1 / 4) = 5120
+- use altpred on newly allocated counters
+    - 8 entries
+    - 5 bit per entry
+    - space: 8 * 5 = 40 bits
+- history vector #1: 1000 bits
+- history vector #2: 27 bits
+- tick counter: 10 bits
+- total entries: 17 * 128 + 9 * 128 = 3328 = 3.25 K
+- total space: 36992 + 14976 + 5120 + 40 + 1000 + 27 + 10 = 58165
+
+SC: TODO
+
+LOOP:
+
+- 8 entries, per entry:
+    - 10 bit tag
+    - 10 bit current iteration
+    - 10 bit number of iterations
+    - 4 bit confidence
+    - 4 bit age
+    - 1 bit direction
+- space: 8 * (10 + 10 + 10 + 4 + 4 + 1) = 312
