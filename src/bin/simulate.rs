@@ -194,35 +194,6 @@ fn main() -> anyhow::Result<()> {
     ]);
     print_stdout(table)?;
 
-    // reproduction of paper "Branch Prediction Is Not A Solved Problem: Measurements, Opportunities, and Future Directions"
-    // find hard to predict branches:
-    // 1. less than 99% prediction accuracy
-    // 2. execute at least 15000 times per 30M instructions
-    // 3. generate at least 1000 mispredictions per 30M instructions
-    let mut h2p_execute_count = 0;
-    let mut h2p_mispred_count = 0;
-    let mut h2p_count = 0;
-    for (info, _) in items.iter() {
-        let accuracy = 1.0 - info.mispred_count as f64 * 100.0 / info.execution_count as f64;
-        if accuracy >= 0.99 {
-            continue;
-        }
-
-        if info.execution_count as f64 / args.simulate as f64 * 30000000.0 < 15000.0 {
-            continue;
-        }
-
-        if info.mispred_count as f64 / args.simulate as f64 * 30000000.0 < 1000.0 {
-            continue;
-        }
-
-        // this is a hard to predict branch
-        // println!("Found hard to predict branch {:x?} {:x?}", branch, info);
-        h2p_execute_count += info.execution_count;
-        h2p_mispred_count += info.mispred_count;
-        h2p_count += 1;
-    }
-
     let num_cond_brs = file
         .branches
         .iter()
@@ -282,6 +253,35 @@ fn main() -> anyhow::Result<()> {
         "- Prediction accuracy of conditional branches: {:.2}% = 1 - {} / {}",
         cond_branch_prediction_accuracy, total_mispred_count, total_cond_execution_count
     );
+
+    // reproduction of paper "Branch Prediction Is Not A Solved Problem: Measurements, Opportunities, and Future Directions"
+    // find hard to predict branches:
+    // 1. less than 99% prediction accuracy
+    // 2. execute at least 15000 times per 30M instructions
+    // 3. generate at least 1000 mispredictions per 30M instructions
+    let mut h2p_execute_count = 0;
+    let mut h2p_mispred_count = 0;
+    let mut h2p_count = 0;
+    for (info, _) in items.iter() {
+        let accuracy = 1.0 - info.mispred_count as f64 * 100.0 / info.execution_count as f64;
+        if accuracy >= 0.99 {
+            continue;
+        }
+
+        if info.execution_count as f64 / args.simulate as f64 * 30000000.0 < 15000.0 {
+            continue;
+        }
+
+        if info.mispred_count as f64 / args.simulate as f64 * 30000000.0 < 1000.0 {
+            continue;
+        }
+
+        // this is a hard to predict branch
+        // println!("Found hard to predict branch {:x?} {:x?}", branch, info);
+        h2p_execute_count += info.execution_count;
+        h2p_mispred_count += info.mispred_count;
+        h2p_count += 1;
+    }
     println!(
         "- Number of H2P conditional branches (static H2P branches): {}",
         h2p_count,

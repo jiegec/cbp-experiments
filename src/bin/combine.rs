@@ -4,7 +4,7 @@ use cbp_experiments::{
 };
 use clap::{Parser, Subcommand};
 use cli_table::{Cell, Table, print_stdout};
-use std::{collections::HashMap, fs::File, path::PathBuf};
+use std::{collections::HashMap, fs::File, io::BufReader, path::PathBuf};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -57,7 +57,7 @@ fn main() -> anyhow::Result<()> {
         } => {
             println!("Loading SimPoint result from {}", simpoint_path.display());
             let simpoint_result: SimPointResult =
-                serde_json::from_reader(File::open(simpoint_path)?)?;
+                serde_json::from_reader(BufReader::new(File::open(simpoint_path)?))?;
 
             for (simpoint_index, phase) in simpoint_result.phases.iter().enumerate() {
                 let result_file = result_path.join(format!(
@@ -90,7 +90,8 @@ fn main() -> anyhow::Result<()> {
     let mut total_instructions = 0;
     for (input_file, weight) in input_files {
         println!("Loading simulation result from {}", input_file.display());
-        let simulate_result: SimulateResult = serde_json::from_reader(File::open(&input_file)?)?;
+        let simulate_result: SimulateResult =
+            serde_json::from_reader(BufReader::new(File::open(&input_file)?))?;
 
         // validate & save metadata
         if !predictor.is_empty() {
