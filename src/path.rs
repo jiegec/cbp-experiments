@@ -66,7 +66,7 @@ pub fn get_simulate_dir<P: AsRef<Path>>(
 
 fn get_selection(selections: Vec<String>, prompt: &str) -> anyhow::Result<String> {
     let options = SkimOptionsBuilder::default()
-        .height(String::from("50%"))
+        .height(String::from("20%"))
         .prompt(prompt.to_string())
         .build()?;
 
