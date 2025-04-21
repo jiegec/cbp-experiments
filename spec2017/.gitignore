@@ -1,4 +1,6 @@
 benchspec/
-build/
+build*/
 data/
+temp/
 src/
+*.tar.gz

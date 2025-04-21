@@ -141,4 +141,5 @@ for $benchmark ("500.perlbench_r", "502.gcc_r", "505.mcf_r", "520.omnetpp_r", "5
 system("sed -i 's/^#ifdef\$/#ifdef SPEC/' src/527.cam4_r/ESMF_AlarmMod.F90");
 
 # build code using ninja
-system("mkdir -p build && cd build && cmake ../src -G Ninja && ninja");
+system("mkdir -p build-o3 && cd build-o3 && cmake ../src -G Ninja -DCMAKE_C_FLAGS=\"-g\" -DCMAKE_CXX_FLAGS=\"-g\" -DCMAKE_Fortran_FLAGS=\"-g\" && ninja && cd .. && tar cvzf build-o3.tar.gz build-o3");
+system("mkdir -p build-o3-lto && cd build-o3-lto && cmake ../src -G Ninja -DCMAKE_C_FLAGS=\"-g -flto\" -DCMAKE_CXX_FLAGS=\"-g -flto\" -DCMAKE_Fortran_FLAGS=\"-g -flto\" && ninja && cd .. && tar cvzf build-o3-lto.tar.gz build-o3-lto");
