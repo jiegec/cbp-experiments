@@ -1,0 +1,84 @@
+{
+    "benchmarks": [{
+        "name": "500.perlbench_r",
+        "data": "spec2017/data/500.perlbench_r",
+        "commands": [{
+            "command": "spec2017/build-o3-lto/500.perlbench_r/500.perlbench_r -I./lib checkspam.pl 2500 5 25 11 150 1 1 1 1"
+        }, {
+            "command": "spec2017/build-o3-lto/500.perlbench_r/500.perlbench_r -I./lib diffmail.pl 4 800 10 17 19 300"
+        }, {
+            "command": "spec2017/build-o3-lto/500.perlbench_r/500.perlbench_r -I./lib splitmail.pl 6400 12 26 16 100 0"
+        }]
+    }, {
+        "name": "502.gcc_r",
+        "data": "spec2017/data/502.gcc_r",
+        "commands": [{
+            "command": "spec2017/build-o3-lto/502.gcc_r/502.gcc_r gcc-pp.c -O3 -finline-limit=0 -fif-conversion -fif-conversion2 -o gcc-pp.opts-O3_-finline-limit_0_-fif-conversion_-fif-conversion2.s"
+        }, {
+            "command": "spec2017/build-o3-lto/502.gcc_r/502.gcc_r gcc-pp.c -O2 -finline-limit=36000 -fpic -o gcc-pp.opts-O2_-finline-limit_36000_-fpic.s"
+        }, {
+            "command": "spec2017/build-o3-lto/502.gcc_r/502.gcc_r gcc-smaller.c -O3 -fipa-pta -o gcc-smaller.opts-O3_-fipa-pta.s"
+        }, {
+            "command": "spec2017/build-o3-lto/502.gcc_r/502.gcc_r ref32.c -O5 -o ref32.opts-O5.s"
+        }, {
+            "command": "spec2017/build-o3-lto/502.gcc_r/502.gcc_r ref32.c -O3 -fselective-scheduling -fselective-scheduling2 -o ref32.opts-O3_-fselective-scheduling_-fselective-scheduling2.s"
+        }]
+    }, {
+        "name": "505.mcf_r",
+        "data": "spec2017/data/505.mcf_r",
+        "commands": [{
+            "command": "spec2017/build-o3-lto/505.mcf_r/505.mcf_r inp.in"
+        }]
+    }, {
+        "name": "520.omnetpp_r",
+        "data": "spec2017/data/520.omnetpp_r",
+        "commands": [{
+            "command": "spec2017/build-o3-lto/520.omnetpp_r/520.omnetpp_r -c General -r 0"
+        }]
+    }, {
+        "name": "523.xalancbmk_r",
+        "data": "spec2017/data/523.xalancbmk_r",
+        "commands": [{
+            "command": "spec2017/build-o3-lto/523.xalancbmk_r/523.xalancbmk_r -v t5.xml xalanc.xsl"
+        }]
+    }, {
+        "name": "525.x264_r",
+        "data": "spec2017/data/525.x264_r",
+        "prepare": "spec2017/build-o3-lto/525.x264_r/ldecod_r -i BuckBunny.264 -o BuckBunny.yuv",
+        "commands": [{
+            "command": "spec2017/build-o3-lto/525.x264_r/525.x264_r --pass 1 --stats x264_stats.log --bitrate 1000 --frames 1000 -o BuckBunny_New.264 BuckBunny.yuv 1280x720"
+        }, {
+            "command": "spec2017/build-o3-lto/525.x264_r/525.x264_r --pass 2 --stats x264_stats.log --bitrate 1000 --dumpyuv 200 --frames 1000 -o BuckBunny_New.264 BuckBunny.yuv 1280x720"
+        }, {
+            "command": "spec2017/build-o3-lto/525.x264_r/525.x264_r --seek 500 --dumpyuv 200 --frames 1250 -o BuckBunny_New.264 BuckBunny.yuv 1280x720"
+        }]
+    }, {
+        "name": "531.deepsjeng_r",
+        "data": "spec2017/data/531.deepsjeng_r",
+        "commands": [{
+            "command": "spec2017/build-o3-lto/531.deepsjeng_r/531.deepsjeng_r ref.txt"
+        }]
+    }, {
+        "name": "541.leela_r",
+        "data": "spec2017/data/541.leela_r",
+        "commands": [{
+            "command": "spec2017/build-o3-lto/541.leela_r/541.leela_r ref.sgf"
+        }]
+    }, {
+        "name": "548.exchange2_r",
+        "data": "spec2017/data/548.exchange2_r",
+        "commands": [{
+            "command": "spec2017/build-o3-lto/548.exchange2_r/548.exchange2_r 6"
+        }]
+    }, {
+        "name": "557.xz_r",
+        "data": "spec2017/data/557.xz_r",
+        "commands": [{
+            "command": "spec2017/build-o3-lto/557.xz_r/557.xz_r cld.tar.xz 160 19cf30ae51eddcbefda78dd06014b4b96281456e078ca7c13e1c0c9e6aaea8dff3efb4ad6b0456697718cede6bd5454852652806a657bb56e07d61128434b474 59796407 61004416 6"
+        }, {
+            "command": "spec2017/build-o3-lto/557.xz_r/557.xz_r cpu2006docs.tar.xz 250 055ce243071129412e9dd0b3b69a21654033a9b723d874b2015c774fac1553d9713be561ca86f74e4f16f22e664fc17a79f30caa5ad2c04fbc447549c2810fae 23047774 23513385 6e"
+        }, {
+            "command": "spec2017/build-o3-lto/557.xz_r/557.xz_r input.combined.xz 250 a841f68f38572a49d86226b7ff5baeb31bd19dc637a922a972b2e6d1257a890f6a544ecab967c313e370478c74f760eb229d4eef8a8d2836d233d3e9dd1430bf 40401484 41217675 7"
+        }]
+    }]
+}
