@@ -87,10 +87,10 @@ sub add_target {
     print(FH "target_compile_options(", $target, " PRIVATE\n\t\$<\$<COMPILE_LANGUAGE:C>:", $bench_cflags, ">\n\t\$<\$<COMPILE_LANGUAGE:CXX>:", $bench_cxxflags, ">\n\t\$<\$<COMPILE_LANGUAGE:Fortran>:", $bench_fflags, ">)\n");
 }
 
-system("rm -rf data");
+system("mkdir -p data");
 mkdir("src");
 open(FH2, '>', "src/CMakeLists.txt") or die $!;
-print(FH2 "cmake_minimum_required(VERSION 2.12)\n");
+print(FH2 "cmake_minimum_required(VERSION 3.10)\n");
 print(FH2 "project(spec2017)\n");
 print(FH2 "enable_language(C CXX Fortran)\n");
 for $benchmark ("500.perlbench_r", "502.gcc_r", "505.mcf_r", "520.omnetpp_r", "523.xalancbmk_r", "525.x264_r", "531.deepsjeng_r", "541.leela_r", "548.exchange2_r", "557.xz_r", "503.bwaves_r", "507.cactuBSSN_r", "508.namd_r", "510.parest_r", "511.povray_r", "519.lbm_r", "521.wrf_r", "526.blender_r", "527.cam4_r", "538.imagick_r", "544.nab_r", "549.fotonik3d_r", "554.roms_r") {
@@ -141,4 +141,4 @@ for $benchmark ("500.perlbench_r", "502.gcc_r", "505.mcf_r", "520.omnetpp_r", "5
 system("sed -i 's/^#ifdef\$/#ifdef SPEC/' src/527.cam4_r/ESMF_AlarmMod.F90");
 
 # build code using ninja
-system("rm -rf build && mkdir -p build && cd build && cmake ../src -G Ninja && ninja");
+system("mkdir -p build && cd build && cmake ../src -G Ninja && ninja");
