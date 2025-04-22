@@ -392,6 +392,8 @@ fn main() -> anyhow::Result<()> {
         )
         .o("marker", "s")
         .o("linestyle", "")
+        & c::xlabel("SimPoint slice")
+        & c::ylabel("SimPoint phase")
         & c::yticks((0..num_clusters).map(|num| num as f64))
         | Run::Save(PathBuf::from(&plot_path));
     println!("Visualization generated to {}", plot_path);
