@@ -58,13 +58,21 @@ MPKI of different predictors:
 | average         | 4.8431        | 5.1863                  | 3.9255         | 4.4021                   | 4.1331        | 2.8794                 |
 | space           | 67349 bits    | 58165 bits              | 523355 bits    | 463917 bits              | 558273 bits   | N/A                    |
 
+Fluctuation between two builds (Run #1 without `-g`, Run #2 with `-g`):
+
+| Executions | TAGE-SC-L 8KB | TAGE-SC-L 64KB |
+|------------|---------------|----------------|
+| Run #1     | 4.8431        | 3.9255         |
+| Run #2     | 4.7859        | 3.8887         |
+| Diff       | -1.2%         | -0.9%          |
+
 #### SimPoint
 
 Accuracy of SimPoint versus full simulation using TAGE-SC-L 8KB:
 
-| Benchmark  | Sub-benchmark | Full MPKI | SimPoint MPKI |
-|------------|---------------|-----------|---------------|
-| 525.x264_r | pass 1        | 0.5162    | 0.5090        |
+| Benchmark  | Sub-benchmark | Full MPKI | SimPoint MPKI | Diff  |
+|------------|---------------|-----------|---------------|-------|
+| 525.x264_r | pass 1        | 0.5162    | 0.5090        | -1.4% |
 
 ## benchmarks/spec-int-2017-rate-o3-lto
 
