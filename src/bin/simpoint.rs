@@ -114,6 +114,9 @@ fn main() -> anyhow::Result<()> {
     let pbar = indicatif::ProgressBar::new(file.num_entries as u64);
     pbar.set_style(get_tqdm_style());
 
+    println!("Each SimPoint slice contains {} instructions", args.size);
+    println!("Basic block vector is of dimension {}", file.num_brs);
+
     let mut last_targ_addr_index = None;
     let mut instructions = 0;
     let mut slices: Vec<SimPointSlice> = vec![];
