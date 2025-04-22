@@ -85,4 +85,36 @@ Accuracy of SimPoint versus full simulation using TAGE-SC-L 8KB:
 
 Summary:
 
+| Benchmark       | Sub-benchmark | Br. Exec. | Trace Size |
+|-----------------|---------------|-----------|------------|
+| 500.perlbench_r | checkspam     | 2.32e11   | 8.77 GiB   |
+| 500.perlbench_r | diffmail      | 1.45e11   | 2.70 GiB   |
+| 500.perlbench_r | splitmail     | 1.31e11   | 1.48 GiB   |
+| 500.perlbench_r | Total         | 5.08e11   | 12.95 GiB  |
+| 502.gcc_r       | gcc-pp -O3    | 4.27e10   | 3.20 GiB   |
+| 502.gcc_r       | gcc-pp -O2    | 5.10e10   | 3.38 GiB   |
+| 502.gcc_r       | gcc-smaller   | 5.31e10   | 2.78 GiB   |
+| 502.gcc_r       | ref32 -O5     | 4.05e10   | 1.17 GiB   |
+| 502.gcc_r       | ref32 -O3     | 4.58e10   | 1.45 GiB   |
+| 502.gcc_r       | Total         | 2.33e11   | 11.98 GiB  |
+| 505.mcf_r       | N/A           | 1.62e11   | 26.6 GiB   |
+| 520.omnetpp_r   | N/A           | 1.97e11   | 13.2 GiB   |
+| 523.xalancbmk_r | N/A           | 3.16e11   | 4.37 GiB   |
+| 525.x264_r      | pass 1        | 1.43e10   | 575 MiB    |
+| 525.x264_r      | pass 2        | 4.42e10   | 2.29 GiB   |
+| 525.x264_r      | seek 500      | 4.77e10   | 2.76 GiB   |
+| 525.x264_r      | Total         | 1.06e11   | 5.61 GiB   |
+| 531.deepsjeng_r | N/A           | 2.13e11   | 29.1 GiB   |
+| 541.leela_r     | N/A           | 2.61e11   | 72.3 GiB   |
+| 548.exchange2_r | N/A           | 3.02e11   | 26.2 GiB   |
+| 557.xz_r        | cld           | 5.07e10   | 9.12 GiB   |
+| 557.xz_r        | cpu2006docs   | 1.84e11   | 7.78 GiB   |
+| 557.xz_r        | input         | 7.94e10   | 10.5 GiB   |
+| 557.xz_r        | Total         | 3.14e11   | 27.4 GiB   |
+| Total           | N/A           | 2.61e12   | 230 GiB    |
+
+### Simulation
+
+MPKI of different predictors:
+
 TODO
