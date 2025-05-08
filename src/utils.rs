@@ -5,7 +5,7 @@ use capstone::{
     },
     prelude::*,
 };
-use object::{Object, ObjectKind, ObjectSection, SectionKind};
+use object::{Architecture, Object, ObjectKind, ObjectSection, SectionKind};
 use std::{collections::HashMap, path::Path};
 
 use crate::{BranchType, Image};
@@ -54,13 +54,6 @@ pub fn create_inst_index_mapping<P: AsRef<std::path::Path>>(
 pub fn create_inst_index_mapping_from_images(
     images: &[Image],
 ) -> anyhow::Result<HashMap<u64, u64>> {
-    let cs = Capstone::new()
-        .x86()
-        .mode(arch::x86::ArchMode::Mode64)
-        .syntax(arch::x86::ArchSyntax::Att)
-        .detail(true)
-        .build()?;
-
     let mut addrs = vec![];
     for image in images {
         let mut image_filename = image.get_filename()?;
@@ -75,6 +68,20 @@ pub fn create_inst_index_mapping_from_images(
             ObjectKind::Executable => 0,
             ObjectKind::Dynamic => image.start,
             _ => unimplemented!("Unsupported file kind"),
+        };
+        let cs = match file.architecture() {
+            Architecture::X86_64 => Capstone::new()
+                .x86()
+                .mode(arch::x86::ArchMode::Mode64)
+                .syntax(arch::x86::ArchSyntax::Att)
+                .detail(true)
+                .build()?,
+            Architecture::Aarch64 => Capstone::new()
+                .arm64()
+                .mode(arch::arm64::ArchMode::Arm)
+                .detail(true)
+                .build()?,
+            _ => unimplemented!("Unsupported architecture"),
         };
 
         for section in file.sections() {
