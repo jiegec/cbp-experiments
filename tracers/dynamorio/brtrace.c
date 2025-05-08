@@ -223,6 +223,7 @@ static void event_thread_init(void *drcontext) {
   t->num_entries = 0;
   t->num_brs = 0;
   t->num_images = 0;
+  t->buffer_size = 0;
   struct hashmap_create_options_s options;
   memset(&options, 0, sizeof(options));
   options.initial_capacity = 16384;
