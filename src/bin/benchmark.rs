@@ -16,7 +16,7 @@ use std::{
     sync::{Arc, Mutex},
     time::Instant,
 };
-use tempdir::TempDir;
+use tempfile::Builder;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -219,7 +219,7 @@ fn main() -> anyhow::Result<()> {
                 // create a temporary folder to run the benchmark
                 // run all commands in the same folder
 
-                let tmp_dir = TempDir::new("cbp-experiments")?;
+                let tmp_dir = Builder::new().prefix("cbp-experiments").tempdir()?;
 
                 // copy files under data to tmp_dir
                 if let Some(data_path) = &benchmark.data {
