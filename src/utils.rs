@@ -69,7 +69,7 @@ pub fn create_inst_index_mapping_from_images(
             ObjectKind::Dynamic => image.start,
             _ => unimplemented!("Unsupported file kind"),
         };
-        let cs = match file.architecture() {
+        let mut cs = match file.architecture() {
             Architecture::X86_64 => Capstone::new()
                 .x86()
                 .mode(arch::x86::ArchMode::Mode64)
@@ -83,6 +83,8 @@ pub fn create_inst_index_mapping_from_images(
                 .build()?,
             _ => unimplemented!("Unsupported architecture"),
         };
+        // handle unsupported instructions
+        cs.set_skipdata(true)?;
 
         for section in file.sections() {
             if section.kind() == SectionKind::Text {
