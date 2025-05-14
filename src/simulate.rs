@@ -2,7 +2,7 @@ use crate::{Branch, ParsedImage};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct SimulateResultBranchInfo {
     /// branch
     pub branch: Branch,
