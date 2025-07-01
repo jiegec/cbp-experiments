@@ -1,6 +1,6 @@
 # cbp-experiments
 
-A platform to run cbp experiments on real binaries. It can:
+A platform to run conditional branch prediction experiments on real binaries. It can:
 
 1. Capture branch trace from real binaries
 2. Run SimPoint methodology on branch traces to reduce size and simulation speed
