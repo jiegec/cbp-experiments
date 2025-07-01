@@ -10,6 +10,10 @@ Assumes that pin is installed to `~/prefix/pin`, and dynamorio is installed to `
 
 Build tracers:
 
+1. Install Pin to `$HOME/prefix/pin`
+2. Install DynamoRIO to `$HOME/prefix/dynamorio`
+3. Run:
+
 ```shell
 ./build.sh
 ```
