@@ -1,21 +1,29 @@
 # cbp-experiments
 
-Usage:
+A platform to run cbp experiments on real binaries. It can:
+
+1. Capture branch trace from real binaries
+2. Run SimPoint methodology on branch traces to reduce size and simulation speed
+3. Simulate branch predictors (from CBP2016, etc.) on the branch traces
+
+## Usage
+
+1. Clone this repository, and:
 
 ```shell
 cargo build --release
 ```
 
-Build tracers under `tracers` if necessary.
+2. Build tracers under `tracers` directory if necessary. See [tracers/README.md](./tracers/README.md) for details.
+3. Run experiments:
+    1. Prepare benchmark config under `benchmarks/[config]/config.json`, see [Configuration section](#configuration)
+    2. Record traces: `cargo run --release --bin benchmark -- record --tracer [tracer] --config-name [config]`, traces are stored under `benchmarks/[config]/traces/final`
+    3. Display trace statistics: `cargo run --release --bin benchmark -- info --config-name [config]`
+    4. Run SimPoint clustering: `cargo run --release --bin benchmark -- simpoint --config-name [config] --size [instructions]`
+    4. Run branch prediction: `cargo run --release --bin benchmark -- simulate --config-name [config] --predictor [predictor]`
+    5. Find results under: `benchmarks/[config]/[simulate]/[datetime]-[predictor]/per-benchmark` or use `cargo run --release --bin benchmark -- report`
 
-Run experiments:
-
-1. Prepare benchmark config under `benchmarks/[config]/config.json`
-2. Record traces: `cargo run --release --bin benchmark -- record --tracer [tracer] --config-name [config]`, traces are stored under `benchmarks/[config]/traces/final`
-3. Display trace statistics: `cargo run --release --bin benchmark -- info --config-name [config]`
-3. Run SimPoint clustering: `cargo run --release --bin benchmark -- simpoint --config-name [config] --size [instructions]`
-4. Run branch prediction: `cargo run --release --bin benchmark -- simulate --config-name [config] --predictor [predictor]`
-5. Find results under: `benchmarks/[config]/[simulate]/[datetime]-[predictor]/per-benchmark`
+## Example
 
 Example #1 leela benchmark:
 
@@ -45,6 +53,8 @@ cargo run --release --bin benchmark -- simpoint --config-name spec-int-2017-rate
 cargo run --release --bin benchmark -- simulate --config-name spec-int-2017-rate --predictor AndreSeznec-TAGE-SC-L-8KB
 ```
 
+## Configuration
+
 Configuration hierarchy:
 
 1. config, e.g. `spec-int-2017-rate-1`
@@ -52,6 +62,24 @@ Configuration hierarchy:
 3. command, e.g. `leela ref.sgf`
 4. simpoint, e.g. the first simpoint phase of `leela ref.sgf`
 
-Caveat:
+You can add benchmarks to `benchmarks/[config]/config.json`, like:
 
-1. fork breaks intel pt converter due to missing filtering of events from child processes
+```json
+{
+    "benchmarks": [{
+        "name": "ls",
+        "commands": [{
+            "command": "/usr/bin/ls ."
+        }]
+    }, {
+        "name": "cat",
+        "commands": [{
+            "command": "/usr/bin/cat /proc/self/maps"
+        }]
+    }]
+}
+```
+
+## FIXME
+
+fork breaks intel pt converter due to missing filtering of events from child processes
