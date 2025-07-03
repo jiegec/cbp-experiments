@@ -15,6 +15,7 @@
 #include <string.h>
 #include <string>
 #include <vector>
+#include <unordered_map>
 #include "cbp-experiments/src/lib.rs.h"
 
 using namespace std;

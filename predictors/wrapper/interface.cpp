@@ -1,5 +1,6 @@
 #include "interface.h"
 #include "andre_seznec_tage_cookbook.h"
+#include "andre_seznec_tage_sc_192kb.h"
 #include "andre_seznec_tage_sc_l_64kb.h"
 #include "andre_seznec_tage_sc_l_64kb_only_tage.h"
 #include "andre_seznec_tage_sc_l_8kb.h"
