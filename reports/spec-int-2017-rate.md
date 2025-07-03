@@ -4,7 +4,7 @@
 
 - Platform: Intel i9-14900K
 - Compiler: GCC 12.2.0
-- Optimization Flags: -O3
+- Optimization Flags: -O3 -g
 - Tracer: Pin
 
 ### Tracing
@@ -58,12 +58,12 @@ MPKI of different predictors:
 | average         | 4.8431        | 5.1863                  | 3.9255         | 4.4021                   | 4.1331        | 2.8794                 |
 | space           | 67349 bits    | 58165 bits              | 523355 bits    | 463917 bits              | 558273 bits   | N/A                    |
 
-Difference between two builds (Run #1 without `-g`, Run #2 with `-g`):
+`-O3` vs `-O3 -g`
 
 | Executions | TAGE-SC-L 8KB | TAGE-SC-L 8KB Only TAGE | TAGE-SC-L 64KB | TAGE-SC-L 64KB Only TAGE | TAGE-Cookbook | Andre Seznec Unlimited |
 |------------|---------------|-------------------------|----------------|--------------------------|---------------|------------------------|
-| Run #1     | 4.8431        | 5.1863                  | 3.9255         | 4.4021                   | 4.1331        | 2.8794                 |
-| Run #2     | 4.7859        | 5.1256                  | 3.8887         | 4.3604                   | 4.0908        | 2.8703                 |
+| `-O3`      | 4.8431        | 5.1863                  | 3.9255         | 4.4021                   | 4.1331        | 2.8794                 |
+| `-O3 -g`   | 4.7859        | 5.1256                  | 3.8887         | 4.3604                   | 4.0908        | 2.8703                 |
 | Diff       | -1.2%         | -1.2%                   | -0.9%          | -0.9%                    | -1.0%         | -0.3%                  |
 
 #### SimPoint
@@ -203,7 +203,7 @@ Simulation result using TAGE-SC-L-8KB:
 
 - Platform: Intel i9-14900K
 - Compiler: GCC 12.2.0
-- Optimization Flags: -O3 -flto
+- Optimization Flags: -O3 -flto -g
 - Tracer: Pin
 
 ### Tracing
@@ -257,10 +257,10 @@ MPKI of different predictors:
 | average         | 5.7022        | 6.0763                  | 4.6507         | 5.1805                   | 4.8620        | 4.2936        | 3.4909                 |
 | space           | 67349 bits    | 58165 bits              | 523355 bits    | 463917 bits              | 558273 bits   | 1567981 bits  | N/A                    |
 
-`-O3` vs `-O3 -flto`:
+`-O3 -g` vs `-O3 -flto -g`:
 
-| Executions | TAGE-SC-L 8KB | TAGE-SC-L 8KB Only TAGE | TAGE-SC-L 64KB | TAGE-Cookbook | Andre Seznec Unlimited |
-|------------|---------------|-------------------------|----------------|---------------|------------------------|
-| O3         | 4.7859        | 5.1256                  | 3.8887         | 4.0908        | 2.8703                 |
-| O3+LTO     | 5.7022        | 6.0763                  | 4.6507         | 4.8620        | 3.4909                 |
-| Diff       | +19.1%        | +18.5%                  | +19.6%         | +18.9%        | +21.6%                 |
+| Executions     | TAGE-SC-L 8KB | TAGE-SC-L 8KB Only TAGE | TAGE-SC-L 64KB | TAGE-Cookbook | Andre Seznec Unlimited |
+|----------------|---------------|-------------------------|----------------|---------------|------------------------|
+| `-O3 -g`       | 4.7859        | 5.1256                  | 3.8887         | 4.0908        | 2.8703                 |
+| `-O3 -flto -g` | 5.7022        | 6.0763                  | 4.6507         | 4.8620        | 3.4909                 |
+| Diff           | +19.1%        | +18.5%                  | +19.6%         | +18.9%        | +21.6%                 |
