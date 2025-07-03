@@ -1,5 +1,33 @@
 # Predictors
 
+## TAGE-SC 192KB
+
+- TAGE: 1169584 bits
+- SC: 29531 bits
+- SCGH: 141398 bits
+- IMLI: 49628 bits
+- LOCAL: 177840 bits
+
+TAGE:
+
+- 28 banks:
+    - 2 way associative
+    - each bank has 1024 entries
+    - each entry has 3 bit counter, 2 bit useful, 14 bit tag
+    - space: 28 * 1024 * (3 + 2 + 14) * 2 = 1089536
+- base bimodal table: 32768 entries
+    - pred: 1 bit per entry
+    - hyst: 2 bit per 2 entries
+    - space: 32768 * (1 + 2 / 2) = 65536
+- history vector #1: 5000 bits
+- history vector #2: 27 bits
+- tick counter: 12 bits
+- allocation counters: 9429 bits
+- count miss 11 counter: 8 bits
+- random number generator: 36 bits
+- total entries: 28 * 1024 * 2 = 56 K
+- total space: 1089536 + 65536 + 5000 + 27 + 12 + 9429 + 8 + 36 = 1169584
+
 ## TAGE-SC-L 64KB
 
 - TAGE: 463917 bits
