@@ -2268,4 +2268,4 @@ public:
 #undef UINT64
 
 
-static CBP2025 cbp2025;
+// static CBP2025 cbp2025;
