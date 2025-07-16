@@ -23,63 +23,19 @@ fn main() -> anyhow::Result<()> {
         let simulate_result: SimulateResult =
             serde_json::from_reader(BufReader::new(File::open(input_file)?))?;
 
-        let total_instructions = simulate_result.simulate;
-
-        // reproduction of paper "Branch Prediction Is Not A Solved Problem: Measurements, Opportunities, and Future Directions"
-        // find hard to predict branches:
-        // 1. less than 99% prediction accuracy
-        // 2. execute at least 15000 times per 30M instructions
-        // 3. generate at least 1000 mispredictions per 30M instructions
-        let mut h2p_execute_count = 0;
-        let mut h2p_mispred_count = 0;
-        let mut h2p_count = 0;
-        for info in simulate_result.branch_info.iter() {
-            let accuracy = 1.0 - info.mispred_count as f64 * 100.0 / info.execution_count as f64;
-            if accuracy >= 0.99 {
-                continue;
-            }
-
-            if info.execution_count as f64 / total_instructions as f64 * 30000000.0 < 15000.0 {
-                continue;
-            }
-
-            if info.mispred_count as f64 / total_instructions as f64 * 30000000.0 < 1000.0 {
-                continue;
-            }
-
-            // this is a hard to predict branch
-            h2p_execute_count += info.execution_count;
-            h2p_mispred_count += info.mispred_count;
-            h2p_count += 1;
-        }
-
-        // misprediction rate of h2p branches
-        let h2p_mispred_rate =
-            h2p_mispred_count as f64 * 100.0 / simulate_result.total_mispred_count as f64;
-        // prediction accuracy of conditional branches
-        let cond_br_acc = 100.0
-            - simulate_result.total_mispred_count as f64 * 100.0
-                / simulate_result.total_cond_execution_count as f64;
-        // prediction accuracy of conditional branches excluding h2p branches
-        let cond_br_acc_excl_h2p = 100.0
-            - (simulate_result.total_mispred_count - h2p_mispred_count) as f64 * 100.0
-                / (simulate_result.total_cond_execution_count - h2p_execute_count) as f64;
-
         columns.push((
             simulate_result.cmpki,
-            h2p_count,
-            h2p_mispred_rate,
-            cond_br_acc,
-            cond_br_acc_excl_h2p,
+            simulate_result.impki,
+            simulate_result.simulate,
+            simulate_result.total_br_execution_count,
         ));
 
         table.push(vec![
             input_file.file_stem().unwrap().to_str().unwrap().cell(),
             format!("{:.4}", simulate_result.cmpki).cell(),
-            format!("{:}", h2p_count).cell(),
-            format!("{:.2} %", h2p_mispred_rate).cell(),
-            format!("{:.2} %", cond_br_acc).cell(),
-            format!("{:.2} %", cond_br_acc_excl_h2p).cell(),
+            format!("{:.4}", simulate_result.impki).cell(),
+            format!("{:.2e}", simulate_result.simulate as f64).cell(),
+            format!("{:.2e}", simulate_result.total_br_execution_count as f64).cell(),
         ]);
 
         // find top 10 branches sorted by mispredictions
@@ -149,23 +105,18 @@ fn main() -> anyhow::Result<()> {
         )
         .cell(),
         format!(
-            "{:.1}",
-            columns.iter().map(|col| col.1 as f64).sum::<f64>() / columns.len() as f64
+            "{:.4}",
+            columns.iter().map(|col| col.1).sum::<f64>() / columns.len() as f64
         )
         .cell(),
         format!(
-            "{:.2} %",
-            columns.iter().map(|col| col.2).sum::<f64>() / columns.len() as f64
+            "{:.2e}",
+            columns.iter().map(|col| col.2 as f64).sum::<f64>() / columns.len() as f64
         )
         .cell(),
         format!(
-            "{:.2} %",
-            columns.iter().map(|col| col.3).sum::<f64>() / columns.len() as f64
-        )
-        .cell(),
-        format!(
-            "{:.2} %",
-            columns.iter().map(|col| col.4).sum::<f64>() / columns.len() as f64
+            "{:.2e}",
+            columns.iter().map(|col| col.3 as f64).sum::<f64>() / columns.len() as f64
         )
         .cell(),
     ]);
@@ -173,10 +124,9 @@ fn main() -> anyhow::Result<()> {
     let table = table.table().title(vec![
         "Benchmark".cell(),
         "CMPKI".cell(),
-        "# Static H2P br.".cell(),
-        "Misp. due to H2P br.".cell(),
-        "Acc. of cond. br.".cell(),
-        "Acc. of cond. br. excl. H2P".cell(),
+        "IMPKI".cell(),
+        "Insts".cell(),
+        "Br insts".cell(),
     ]);
     print_stdout(table)?;
 
