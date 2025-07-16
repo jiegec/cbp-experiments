@@ -167,7 +167,11 @@ fn main() -> anyhow::Result<()> {
                 // requires prediction
                 let predict = indirect_branch_predictor_mut
                     .as_mut()
-                    .get_indirect_branch_prediction(branch.inst_addr, branch.targ_addr);
+                    .get_indirect_branch_prediction(
+                        branch.inst_addr,
+                        branch.branch_type,
+                        branch.targ_addr,
+                    );
                 if instructions >= args.skip + args.warmup {
                     branch_infos[entry.get_br_index()].mispred_count +=
                         (predict != branch.targ_addr) as u64;

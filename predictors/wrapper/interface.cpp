@@ -8,6 +8,7 @@
 #include "andre_seznec_tage_sc_l_64kb_only_tage.h"
 #include "andre_seznec_tage_sc_l_8kb.h"
 #include "andre_seznec_tage_sc_l_8kb_only_tage.h"
+#include "andre_seznec_ittage_64kb.h"
 #include "andre_seznec_unlimited.h"
 #include "ideal_cbp.h"
 #include "ideal_ibp.h"
@@ -28,7 +29,7 @@ new_conditional_branch_predictor(rust::Str name) {
 std::unique_ptr<std::vector<std::string>> list_conditional_branch_predictors() {
   std::vector<std::string> result = {
 #define PREDICTOR(predictor, class) #predictor,
-#include "indirect_branch_predictors.h"
+#include "conditional_branch_predictors.h"
 #undef PREDICTOR
   };
   return std::unique_ptr<std::vector<std::string>>(

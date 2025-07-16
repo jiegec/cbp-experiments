@@ -3,7 +3,7 @@
 
 IdealIBP::IdealIBP() {}
 
-uint64_t IdealIBP::get_indirect_branch_prediction(uint64_t pc,
+uint64_t IdealIBP::get_indirect_branch_prediction(uint64_t pc, branch_type type,
                                                   uint64_t groundtruth) {
   return groundtruth;
 }

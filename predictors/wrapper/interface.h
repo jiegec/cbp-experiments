@@ -10,7 +10,7 @@ class ConditionalBranchPredictor {
 public:
   ConditionalBranchPredictor() {}
   virtual bool get_conditional_branch_prediction(uint64_t pc,
-                                                bool groundtruth) = 0;
+                                                 bool groundtruth) = 0;
   virtual void update_conditional_branch_predictor(uint64_t pc,
                                                    branch_type type,
                                                    bool resolve_direction,
@@ -29,7 +29,7 @@ std::unique_ptr<std::vector<std::string>> list_conditional_branch_predictors();
 class IndirectBranchPredictor {
 public:
   IndirectBranchPredictor() {}
-  virtual uint64_t get_indirect_branch_prediction(uint64_t pc,
+  virtual uint64_t get_indirect_branch_prediction(uint64_t pc, branch_type type,
                                                   uint64_t groundtruth) = 0;
   virtual void update_indirect_branch_predictor(uint64_t pc, branch_type type,
                                                 bool branch_taken,

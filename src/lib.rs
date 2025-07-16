@@ -78,6 +78,7 @@ mod ffi {
         pub fn get_indirect_branch_prediction(
             self: Pin<&mut IndirectBranchPredictor>,
             pc: u64,
+            branch_type: BranchType,
             groundtruth: u64,
         ) -> u64;
         pub fn update_indirect_branch_predictor(
