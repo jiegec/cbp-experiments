@@ -5,6 +5,7 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#include "cbp-experiments/src/lib.rs.h"
 #include <assert.h>
 #include <cstdio>
 #include <cstdlib>
@@ -14,9 +15,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <string>
-#include <vector>
 #include <unordered_map>
-#include "cbp-experiments/src/lib.rs.h"
+#include <vector>
 
 using namespace std;
 
@@ -92,6 +92,5 @@ static inline OpType convert_type(branch_type type) {
     assert(false);
   }
 }
-
 
 #endif

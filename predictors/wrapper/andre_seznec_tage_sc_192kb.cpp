@@ -10,7 +10,7 @@ AndreSeznecTAGESC192KB::AndreSeznecTAGESC192KB() {
   seq_no = 0;
 }
 
-bool AndreSeznecTAGESC192KB::get_prediction(uint64_t pc) {
+bool AndreSeznecTAGESC192KB::get_conditonal_branch_prediction(uint64_t pc) {
   return impl->predict(seq_no++, 0, pc);
 }
 
@@ -33,19 +33,17 @@ static inline int convert_type_tage_sc_192kb(branch_type type) {
   }
 }
 
-void AndreSeznecTAGESC192KB::update_predictor(uint64_t pc, branch_type type,
-                                              bool resolve_direction,
-                                              bool predict_direction,
-                                              uint64_t branch_target) {
+void AndreSeznecTAGESC192KB::update_conditional_branch_predictor(
+    uint64_t pc, branch_type type, bool resolve_direction,
+    bool predict_direction, uint64_t branch_target) {
   impl->HistoryUpdate(pc, convert_type_tage_sc_192kb(type), resolve_direction,
                       branch_target);
   impl->update(seq_no - 1, 0, pc, resolve_direction, predict_direction,
                branch_target);
 }
 
-void AndreSeznecTAGESC192KB::track_other_inst(uint64_t pc, branch_type type,
-                                              bool branch_taken,
-                                              uint64_t branch_target) {
+void AndreSeznecTAGESC192KB::update_conditional_branch_predictor_other_inst(
+    uint64_t pc, branch_type type, bool branch_taken, uint64_t branch_target) {
   impl->TrackOtherInst(pc, convert_type_tage_sc_192kb(type), branch_taken,
                        branch_target);
 }

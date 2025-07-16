@@ -3,7 +3,7 @@ use cbp_experiments::{
     Branch, BranchType, TraceFileDecoder, create_inst_index_mapping_from_images, get_inst_index,
     get_tqdm_style,
 };
-use cbp_experiments::{SimulateResult, SimulateResultBranchInfo, new_predictor};
+use cbp_experiments::{SimulateResult, SimulateResultBranchInfo, new_conditional_branch_predictor};
 use clap::Parser;
 use cli_table::{Cell, Table, print_stdout};
 use std::path::PathBuf;
@@ -60,7 +60,7 @@ fn main() -> anyhow::Result<()> {
         args.skip, args.warmup, args.simulate
     );
 
-    let mut predictor = new_predictor(&args.predictor);
+    let mut predictor = new_conditional_branch_predictor(&args.predictor);
     let mut predictor_mut = predictor.as_mut().unwrap();
 
     // create a mapping from instruction address to instruction index for instruction counting
@@ -115,14 +115,16 @@ fn main() -> anyhow::Result<()> {
             let branch = &file.branches[entry.get_br_index()];
             if branch.branch_type == BranchType::ConditionalDirectJump {
                 // requires prediction
-                let predict = predictor_mut.as_mut().get_prediction(branch.inst_addr);
+                let predict = predictor_mut
+                    .as_mut()
+                    .get_conditonal_branch_prediction(branch.inst_addr);
                 if instructions >= args.skip + args.warmup {
                     branch_infos[entry.get_br_index()].mispred_count +=
                         (predict != entry.get_taken()) as u64;
                 }
 
                 // update
-                predictor_mut.as_mut().update_predictor(
+                predictor_mut.as_mut().update_conditional_branch_predictor(
                     branch.inst_addr,
                     branch.branch_type,
                     entry.get_taken(),
@@ -131,12 +133,14 @@ fn main() -> anyhow::Result<()> {
                 );
             } else {
                 // update
-                predictor_mut.as_mut().track_other_inst(
-                    branch.inst_addr,
-                    branch.branch_type,
-                    true,
-                    branch.targ_addr,
-                );
+                predictor_mut
+                    .as_mut()
+                    .update_conditional_branch_predictor_other_inst(
+                        branch.inst_addr,
+                        branch.branch_type,
+                        true,
+                        branch.targ_addr,
+                    );
             }
 
             if instructions >= args.skip + args.warmup + args.simulate {

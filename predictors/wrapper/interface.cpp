@@ -9,19 +9,20 @@
 #include "cbp-experiments/src/lib.rs.h"
 #include <memory>
 
-std::unique_ptr<Predictor> new_predictor(rust::Str name) {
+std::unique_ptr<ConditionalBranchPredictor>
+new_conditional_branch_predictor(rust::Str name) {
   if (false) {
   }
 #define PREDICTOR(predictor, class)                                            \
   else if (name == #predictor) {                                               \
-    return std::unique_ptr<Predictor>(new class);                              \
+    return std::unique_ptr<ConditionalBranchPredictor>(new class);             \
   }
 #include "predictors.h"
 #undef PREDICTOR
   return nullptr;
 }
 
-std::unique_ptr<std::vector<std::string>> list_predictors() {
+std::unique_ptr<std::vector<std::string>> list_conditonal_branch_predictors() {
   std::vector<std::string> result = {
 
 #define PREDICTOR(predictor, class) #predictor,

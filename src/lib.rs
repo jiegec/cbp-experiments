@@ -34,21 +34,31 @@ mod ffi {
     unsafe extern "C++" {
         include!("cbp-experiments/predictors/wrapper/interface.h");
 
-        type Predictor;
+        type ConditionalBranchPredictor;
 
-        pub fn new_predictor(name: &str) -> UniquePtr<Predictor>;
-        pub fn list_predictors() -> UniquePtr<CxxVector<CxxString>>;
-        pub fn get_prediction(self: Pin<&mut Predictor>, pc: u64) -> bool;
-        pub fn update_predictor(
-            self: Pin<&mut Predictor>,
+        pub fn new_conditional_branch_predictor(
+            name: &str,
+        ) -> UniquePtr<ConditionalBranchPredictor>;
+        pub fn list_conditonal_branch_predictors() -> UniquePtr<CxxVector<CxxString>>;
+        // for conditional branch:
+        // 1. call get_conditonal_branch_prediction to get prediction
+        // 2. call update_conditional_branch_predictor to update predictor state
+        // for other branches:
+        // 2. call update_conditional_branch_predictor_other_inst to update predictor state
+        pub fn get_conditonal_branch_prediction(
+            self: Pin<&mut ConditionalBranchPredictor>,
+            pc: u64,
+        ) -> bool;
+        pub fn update_conditional_branch_predictor(
+            self: Pin<&mut ConditionalBranchPredictor>,
             pc: u64,
             branch_type: BranchType,
             resolve_direction: bool,
             predict_direction: bool,
             branch_target: u64,
         );
-        pub fn track_other_inst(
-            self: Pin<&mut Predictor>,
+        pub fn update_conditional_branch_predictor_other_inst(
+            self: Pin<&mut ConditionalBranchPredictor>,
             pc: u64,
             branch_type: BranchType,
             branch_taken: bool,
