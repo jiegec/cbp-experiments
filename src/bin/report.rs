@@ -12,6 +12,15 @@ struct Cli {
     simulate_path: Vec<PathBuf>,
 }
 
+pub struct UniqueBranchInfo {
+    /// branch
+    pub branch_inst_addr: u64,
+    /// statistics
+    pub execution_count: u64,
+    pub taken_count: u64,
+    pub mispred_count: u64,
+}
+
 fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
 
@@ -40,12 +49,28 @@ fn main() -> anyhow::Result<()> {
 
         // find top 10 branches sorted by mispredictions
         println!("Top branches by misprediction count:");
-        let mut items = simulate_result.branch_info.clone();
 
+        // 1. sort by inst addr
+        let mut items = simulate_result.branch_info.clone();
+        items.sort_by_key(|info| info.branch.inst_addr);
+
+        // 2. group by inst addr
+        let mut items: Vec<UniqueBranchInfo> = items
+            .as_slice()
+            .chunk_by(|info1, info2| info1.branch.inst_addr == info2.branch.inst_addr)
+            .map(|infos| UniqueBranchInfo {
+                branch_inst_addr: infos[0].branch.inst_addr,
+                execution_count: infos.iter().map(|info| info.execution_count).sum(),
+                taken_count: infos.iter().map(|info| info.taken_count).sum(),
+                mispred_count: infos.iter().map(|info| info.mispred_count).sum(),
+            })
+            .collect();
+
+        // 3. sort by mispred count
         items.sort_by_key(|info| info.mispred_count);
         let mut table = vec![];
         for info in items.iter().rev().take(10) {
-            let addr = info.branch.inst_addr;
+            let addr = info.branch_inst_addr;
             let mut addr_fmt = format!("unknown:0x{:x}", addr);
             let mut line_fmt = format!("unknown");
             for image in &simulate_result.images {
@@ -72,7 +97,7 @@ fn main() -> anyhow::Result<()> {
             }
 
             table.push(vec![
-                format!("0x{:08x}", info.branch.inst_addr).cell(),
+                format!("0x{:08x}", info.branch_inst_addr).cell(),
                 info.execution_count.cell(),
                 info.mispred_count.cell(),
                 format!(
