@@ -117,3 +117,10 @@ LOOP:
     - 4 bit age
     - 1 bit direction
 - space: 8 * (10 + 10 + 10 + 4 + 4 + 1) = 312
+
+## ITTAGE 64KB
+
+- ITTAGE: 64768 bytes
+- Region table: 240 bytes (752 bytes for 64-bit version)
+- IUM: 384 bytes
+- Total: 65392 bytes
