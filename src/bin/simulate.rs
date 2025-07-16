@@ -15,9 +15,9 @@ struct Cli {
     #[arg(short, long)]
     trace_path: PathBuf,
 
-    /// Predictor name
+    /// Conditional branch predictor name
     #[arg(short, long)]
-    predictor: String,
+    conditional_branch_predictor: String,
 
     /// Skip count in instructions
     #[arg(short, long, default_value = "0")]
@@ -60,7 +60,7 @@ fn main() -> anyhow::Result<()> {
         args.skip, args.warmup, args.simulate
     );
 
-    let mut predictor = new_conditional_branch_predictor(&args.predictor);
+    let mut predictor = new_conditional_branch_predictor(&args.conditional_branch_predictor);
     let mut predictor_mut = predictor.as_mut().unwrap();
 
     // create a mapping from instruction address to instruction index for instruction counting
@@ -339,7 +339,7 @@ fn main() -> anyhow::Result<()> {
 
         let mut result = SimulateResult {
             trace_path: Some(args.trace_path.clone()),
-            predictor: args.predictor.clone(),
+            conditional_branch_predictor: args.conditional_branch_predictor.clone(),
             images,
             skip: args.skip,
             warmup: args.warmup,

@@ -43,7 +43,7 @@ fn main() -> anyhow::Result<()> {
 
     // combined result
     let mut branch_info: Vec<SimulateResultBranchInfo> = vec![];
-    let mut predictor = String::new();
+    let mut conditional_branch_predictor = String::new();
     let mut images: Vec<ParsedImage> = vec![];
     let trace_path: Option<PathBuf>;
 
@@ -94,8 +94,11 @@ fn main() -> anyhow::Result<()> {
             serde_json::from_reader(BufReader::new(File::open(&input_file)?))?;
 
         // validate & save metadata
-        if !predictor.is_empty() {
-            assert_eq!(predictor, simulate_result.predictor);
+        if !conditional_branch_predictor.is_empty() {
+            assert_eq!(
+                conditional_branch_predictor,
+                simulate_result.conditional_branch_predictor
+            );
         }
         if !images.is_empty() {
             // generate warning if images differs, it is okay if it is a dynamic library or vdso
@@ -109,7 +112,7 @@ fn main() -> anyhow::Result<()> {
                 }
             }
         }
-        predictor = simulate_result.predictor;
+        conditional_branch_predictor = simulate_result.conditional_branch_predictor;
         images = simulate_result.images;
 
         total_instructions += simulate_result.simulate;
@@ -216,7 +219,7 @@ fn main() -> anyhow::Result<()> {
 
     let combined = SimulateResult {
         trace_path,
-        predictor,
+        conditional_branch_predictor,
         images,
         skip: 0,
         warmup: 0,
