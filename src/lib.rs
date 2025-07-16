@@ -89,3 +89,7 @@ mod ffi {
         );
     }
 }
+
+pub fn is_indirect(br: BranchType) -> bool {
+    br == BranchType::IndirectCall || br == BranchType::IndirectJump
+}

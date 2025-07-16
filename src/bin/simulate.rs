@@ -1,7 +1,7 @@
 //! Test branch prediction accuracy
 use cbp_experiments::{
     Branch, BranchType, TraceFileDecoder, create_inst_index_mapping_from_images, get_inst_index,
-    get_tqdm_style,
+    get_tqdm_style, is_indirect, new_indirect_branch_predictor,
 };
 use cbp_experiments::{SimulateResult, SimulateResultBranchInfo, new_conditional_branch_predictor};
 use clap::Parser;
@@ -18,6 +18,10 @@ struct Cli {
     /// Conditional branch predictor name
     #[arg(short, long)]
     conditional_branch_predictor: String,
+
+    /// Indirect branch predictor name
+    #[arg(short, long)]
+    indirect_branch_predictor: String,
 
     /// Skip count in instructions
     #[arg(short, long, default_value = "0")]
@@ -36,8 +40,9 @@ struct Cli {
     output_path: Option<PathBuf>,
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct BranchInfo {
+    branch_type: BranchType,
     execution_count: u64,
     taken_count: u64,
     mispred_count: u64,
@@ -60,18 +65,29 @@ fn main() -> anyhow::Result<()> {
         args.skip, args.warmup, args.simulate
     );
 
-    let mut predictor = new_conditional_branch_predictor(&args.conditional_branch_predictor);
-    let mut predictor_mut = predictor.as_mut().unwrap();
+    let mut conditional_branch_predictor =
+        new_conditional_branch_predictor(&args.conditional_branch_predictor);
+    let mut conditional_branch_predictor_mut = conditional_branch_predictor.as_mut().unwrap();
+
+    let mut indirect_branch_predictor =
+        new_indirect_branch_predictor(&args.indirect_branch_predictor);
+    let mut indirect_branch_predictor_mut = indirect_branch_predictor.as_mut().unwrap();
 
     // create a mapping from instruction address to instruction index for instruction counting
     let mapping = create_inst_index_mapping_from_images(file.images)?;
 
-    let mut branch_infos = vec![BranchInfo::default(); file.num_brs];
+    let mut branch_infos = vec![];
 
     // preprocess instruction indices for all branches
-    for (i, branch) in file.branches.iter().enumerate() {
-        branch_infos[i].inst_addr_index = get_inst_index(&mapping, branch.inst_addr);
-        branch_infos[i].targ_addr_index = get_inst_index(&mapping, branch.targ_addr);
+    for branch in file.branches {
+        branch_infos.push(BranchInfo {
+            branch_type: branch.branch_type,
+            execution_count: 0,
+            taken_count: 0,
+            mispred_count: 0,
+            inst_addr_index: get_inst_index(&mapping, branch.inst_addr),
+            targ_addr_index: get_inst_index(&mapping, branch.targ_addr),
+        });
     }
 
     let pbar = indicatif::ProgressBar::new(0);
@@ -111,11 +127,12 @@ fn main() -> anyhow::Result<()> {
                 first_simulate = false;
             }
 
-            // predict or train
             let branch = &file.branches[entry.get_br_index()];
+
+            // predict or train conditional branch predictor
             if branch.branch_type == BranchType::ConditionalDirectJump {
                 // requires prediction
-                let predict = predictor_mut
+                let predict = conditional_branch_predictor_mut
                     .as_mut()
                     .get_conditional_branch_prediction(branch.inst_addr, entry.get_taken());
                 if instructions >= args.skip + args.warmup {
@@ -124,21 +141,55 @@ fn main() -> anyhow::Result<()> {
                 }
 
                 // update
-                predictor_mut.as_mut().update_conditional_branch_predictor(
-                    branch.inst_addr,
-                    branch.branch_type,
-                    entry.get_taken(),
-                    predict,
-                    branch.targ_addr,
-                );
+                conditional_branch_predictor_mut
+                    .as_mut()
+                    .update_conditional_branch_predictor(
+                        branch.inst_addr,
+                        branch.branch_type,
+                        entry.get_taken(),
+                        predict,
+                        branch.targ_addr,
+                    );
             } else {
                 // update
-                predictor_mut
+                conditional_branch_predictor_mut
                     .as_mut()
                     .update_conditional_branch_predictor_other_inst(
                         branch.inst_addr,
                         branch.branch_type,
                         true,
+                        branch.targ_addr,
+                    );
+            }
+
+            // predict or train indirect branch predictor
+            if is_indirect(branch.branch_type) {
+                // requires prediction
+                let predict = indirect_branch_predictor_mut
+                    .as_mut()
+                    .get_indirect_branch_prediction(branch.inst_addr, branch.targ_addr);
+                if instructions >= args.skip + args.warmup {
+                    branch_infos[entry.get_br_index()].mispred_count +=
+                        (predict != branch.targ_addr) as u64;
+                }
+
+                // update
+                indirect_branch_predictor_mut
+                    .as_mut()
+                    .update_indirect_branch_predictor(
+                        branch.inst_addr,
+                        branch.branch_type,
+                        entry.get_taken(),
+                        branch.targ_addr,
+                    );
+            } else {
+                // update
+                indirect_branch_predictor_mut
+                    .as_mut()
+                    .update_indirect_branch_predictor(
+                        branch.inst_addr,
+                        branch.branch_type,
+                        entry.get_taken(),
                         branch.targ_addr,
                     );
             }
@@ -203,6 +254,11 @@ fn main() -> anyhow::Result<()> {
         .iter()
         .filter(|branch| branch.branch_type == BranchType::ConditionalDirectJump)
         .count();
+    println!(
+        "- Number of conditional branches (total static branches): {}",
+        num_cond_brs,
+    );
+
     let num_cond_brs_executed = file
         .branches
         .iter()
@@ -211,6 +267,13 @@ fn main() -> anyhow::Result<()> {
             branch.branch_type == BranchType::ConditionalDirectJump && info.execution_count > 0
         })
         .count();
+    println!(
+        "- Number of conditional branches executed at least once (static branches per slice): {}",
+        num_cond_brs_executed,
+    );
+
+    let total_mispred_count: u64 = branch_infos.iter().map(|info| info.mispred_count).sum();
+    println!("- Total branch mispredictions: {}", total_mispred_count);
 
     println!("Overall statistics (H2P branches means hard to predict conditional branches):");
     // compute mpki
@@ -225,23 +288,19 @@ fn main() -> anyhow::Result<()> {
         .filter(|(_, branch)| branch.branch_type == BranchType::ConditionalDirectJump)
         .map(|(info, _)| info.execution_count)
         .sum();
-    let total_mispred_count: u64 = branch_infos.iter().map(|info| info.mispred_count).sum();
-    println!(
-        "- Number of conditional branches (total static branches): {}",
-        num_cond_brs,
-    );
-    println!(
-        "- Number of conditional branches executed at least once (static branches per slice): {}",
-        num_cond_brs_executed,
-    );
+    let total_cond_mispred_count: u64 = branch_infos
+        .iter()
+        .filter(|info| info.branch_type == BranchType::ConditionalDirectJump)
+        .map(|info| info.mispred_count)
+        .sum();
     println!(
         "- Conditional branch mispredictions: {}",
-        total_mispred_count,
+        total_cond_mispred_count,
     );
-    let cmpki = total_mispred_count as f64 * 1000.0 / args.simulate as f64;
+    let cmpki = total_cond_mispred_count as f64 * 1000.0 / args.simulate as f64;
     println!(
         "- Conditional branch mispredictions per kilo instructions (CMPKI): {:.2} = {} * 1000 / {}",
-        cmpki, total_mispred_count, args.simulate
+        cmpki, total_cond_mispred_count, args.simulate
     );
     println!(
         "- Runtime executions of branches: {}",
@@ -252,14 +311,14 @@ fn main() -> anyhow::Result<()> {
         total_cond_execution_count,
     );
     let cond_branch_prediction_accuracy =
-        100.0 - total_mispred_count as f64 * 100.0 / total_cond_execution_count as f64;
+        100.0 - total_cond_mispred_count as f64 * 100.0 / total_cond_execution_count as f64;
     println!(
         "- Prediction accuracy of conditional branches: {:.2}% = 1 - {} / {}",
-        cond_branch_prediction_accuracy, total_mispred_count, total_cond_execution_count
+        cond_branch_prediction_accuracy, total_cond_mispred_count, total_cond_execution_count
     );
 
     // reproduction of paper "Branch Prediction Is Not A Solved Problem: Measurements, Opportunities, and Future Directions"
-    // find hard to predict branches:
+    // find hard to predict conditional branches:
     // 1. less than 99% prediction accuracy
     // 2. execute at least 15000 times per 30M instructions
     // 3. generate at least 1000 mispredictions per 30M instructions
@@ -267,6 +326,10 @@ fn main() -> anyhow::Result<()> {
     let mut h2p_mispred_count = 0;
     let mut h2p_count = 0;
     for (info, _) in items.iter() {
+        if info.branch_type != BranchType::ConditionalDirectJump {
+            continue;
+        }
+
         let accuracy = 1.0 - info.mispred_count as f64 * 100.0 / info.execution_count as f64;
         if accuracy >= 0.99 {
             continue;
@@ -313,22 +376,52 @@ fn main() -> anyhow::Result<()> {
     println!(
         "- Prediction accuracy of conditional branches excluding H2P branches: {:.2}% = 1 - {} / {}",
         100.0
-            - (total_mispred_count - h2p_mispred_count) as f64 * 100.0
+            - (total_cond_mispred_count - h2p_mispred_count) as f64 * 100.0
                 / (total_cond_execution_count - h2p_execute_count) as f64,
-        total_mispred_count - h2p_mispred_count,
+        total_cond_mispred_count - h2p_mispred_count,
         total_cond_execution_count - h2p_execute_count
     );
     println!(
         "- Conditional branch mispredictions due to H2P branches: {:.2}% = {} / {}",
-        h2p_mispred_count as f64 * 100.0 / total_mispred_count as f64,
+        h2p_mispred_count as f64 * 100.0 / total_cond_mispred_count as f64,
         h2p_mispred_count,
-        total_mispred_count
+        total_cond_mispred_count
     );
     println!(
         "- Ratio of H2P branches to all conditional branches: {:.2}% = {} / {}",
         h2p_count as f64 * 100.0 / file.num_brs as f64,
         h2p_count,
         num_cond_brs
+    );
+
+    // indirect branch prediction
+    let total_indirect_execution_count: u64 = branch_infos
+        .iter()
+        .zip(file.branches)
+        .filter(|(_, branch)| is_indirect(branch.branch_type))
+        .map(|(info, _)| info.execution_count)
+        .sum();
+    let total_indirect_mispred_count: u64 = branch_infos
+        .iter()
+        .filter(|info| is_indirect(info.branch_type))
+        .map(|info| info.mispred_count)
+        .sum();
+    println!(
+        "- Indirect branch mispredictions: {}",
+        total_indirect_mispred_count,
+    );
+    let impki = total_indirect_mispred_count as f64 * 1000.0 / args.simulate as f64;
+    println!(
+        "- Indirect branch mispredictions per kilo instructions (IMPKI): {:.2} = {} * 1000 / {}",
+        impki, total_indirect_mispred_count, args.simulate
+    );
+    let indirect_branch_prediction_accuracy =
+        100.0 - total_indirect_mispred_count as f64 * 100.0 / total_indirect_execution_count as f64;
+    println!(
+        "- Prediction accuracy of Indirect branches: {:.2}% = 1 - {} / {}",
+        indirect_branch_prediction_accuracy,
+        total_indirect_mispred_count,
+        total_indirect_execution_count
     );
 
     if let Some(output_path) = &args.output_path {
@@ -340,6 +433,7 @@ fn main() -> anyhow::Result<()> {
         let mut result = SimulateResult {
             trace_path: Some(args.trace_path.clone()),
             conditional_branch_predictor: args.conditional_branch_predictor.clone(),
+            indirect_branch_predictor: args.indirect_branch_predictor.clone(),
             images,
             skip: args.skip,
             warmup: args.warmup,
@@ -351,6 +445,9 @@ fn main() -> anyhow::Result<()> {
             cmpki,
             // handle NaN
             cond_branch_prediction_accuracy: Some(cond_branch_prediction_accuracy),
+            impki,
+            // handle NaN
+            indirect_branch_prediction_accuracy: Some(indirect_branch_prediction_accuracy),
         };
         for (info, branch) in &items {
             if info.execution_count > 0 {

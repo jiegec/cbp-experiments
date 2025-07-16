@@ -1,6 +1,7 @@
 //! Combine simulation results of multiple SimPoint phases
 use cbp_experiments::{
     Branch, BranchType, ParsedImage, SimPointResult, SimulateResult, SimulateResultBranchInfo,
+    is_indirect,
 };
 use clap::{Parser, Subcommand};
 use cli_table::{Cell, Table, print_stdout};
@@ -44,6 +45,7 @@ fn main() -> anyhow::Result<()> {
     // combined result
     let mut branch_info: Vec<SimulateResultBranchInfo> = vec![];
     let mut conditional_branch_predictor = String::new();
+    let mut indirect_branch_predictor = String::new();
     let mut images: Vec<ParsedImage> = vec![];
     let trace_path: Option<PathBuf>;
 
@@ -113,6 +115,7 @@ fn main() -> anyhow::Result<()> {
             }
         }
         conditional_branch_predictor = simulate_result.conditional_branch_predictor;
+        indirect_branch_predictor = simulate_result.indirect_branch_predictor;
         images = simulate_result.images;
 
         total_instructions += simulate_result.simulate;
@@ -175,51 +178,89 @@ fn main() -> anyhow::Result<()> {
     print_stdout(table)?;
 
     println!("Overall statistics:");
-    // compute mpki
+    // compute statistics
+    let total_br_execution_count: u64 = branch_info.iter().map(|info| info.execution_count).sum();
+    println!(
+        "- Runtime executions of branches: {}",
+        total_br_execution_count,
+    );
+    let total_mispred_count: u64 = branch_info.iter().map(|info| info.mispred_count).sum();
+    println!("- Total branch mispredictions: {}", total_mispred_count);
+
+    // conditional branch predictions
     let num_cond_brs_executed = branch_info
         .iter()
         .filter(|info| {
             info.branch.branch_type == BranchType::ConditionalDirectJump && info.execution_count > 0
         })
         .count();
-    let total_br_execution_count: u64 = branch_info.iter().map(|info| info.execution_count).sum();
+    println!(
+        "- Number of conditional branches executed at least once (static branches per slice): {}",
+        num_cond_brs_executed,
+    );
+    let total_cond_mispred_count: u64 = branch_info
+        .iter()
+        .filter(|info| info.branch.branch_type == BranchType::ConditionalDirectJump)
+        .map(|info| info.mispred_count)
+        .sum();
+    println!(
+        "- Conditional branch mispredictions: {}",
+        total_cond_mispred_count
+    );
+    let cmpki = total_cond_mispred_count as f64 * 1000.0 / total_instructions as f64;
+    println!(
+        "- Conditional branch mispredictions per kilo instructions (CMPKI): {:.2} = {} * 1000 / {}",
+        cmpki, total_cond_mispred_count, total_instructions
+    );
     let total_cond_execution_count: u64 = branch_info
         .iter()
         .filter(|info| info.branch.branch_type == BranchType::ConditionalDirectJump)
         .map(|info| info.execution_count)
         .sum();
-    let total_mispred_count: u64 = branch_info.iter().map(|info| info.mispred_count).sum();
-    println!(
-        "- Number of conditional branches executed at least once (static branches per slice): {}",
-        num_cond_brs_executed,
-    );
-    println!(
-        "- Conditional branch mispredictions: {}",
-        total_mispred_count,
-    );
-    let cmpki = total_mispred_count as f64 * 1000.0 / total_instructions as f64;
-    println!(
-        "- Conditional branch mispredictions per kilo instructions (CMPKI): {:.2} = {} * 1000 / {}",
-        cmpki, total_mispred_count, total_instructions
-    );
-    println!(
-        "- Runtime executions of branches: {}",
-        total_br_execution_count,
-    );
     println!(
         "- Runtime executions of conditional branches: {}",
         total_cond_execution_count,
     );
     let cond_branch_prediction_accuracy =
-        100.0 - total_mispred_count as f64 * 100.0 / total_cond_execution_count as f64;
+        100.0 - total_cond_mispred_count as f64 * 100.0 / total_cond_execution_count as f64;
     println!(
         "- Prediction accuracy of conditional branches: {:.2}% = 1 - {} / {}",
-        cond_branch_prediction_accuracy, total_mispred_count, total_cond_execution_count
+        cond_branch_prediction_accuracy, total_cond_mispred_count, total_cond_execution_count
+    );
+
+    // indirect branch prediction
+    let total_indirect_mispred_count: u64 = branch_info
+        .iter()
+        .filter(|info| is_indirect(info.branch.branch_type))
+        .map(|info| info.mispred_count)
+        .sum();
+    let impki = total_indirect_mispred_count as f64 * 1000.0 / total_instructions as f64;
+    println!(
+        "- Indirect branch mispredictions per kilo instructions (IMPKI): {:.2} = {} * 1000 / {}",
+        impki, total_indirect_mispred_count, total_instructions
+    );
+    let total_indirect_execution_count: u64 = branch_info
+        .iter()
+        .filter(|info| is_indirect(info.branch.branch_type))
+        .map(|info| info.execution_count)
+        .sum();
+    println!(
+        "- Runtime executions of indirect branches: {}",
+        total_indirect_execution_count,
+    );
+    let indirect_branch_prediction_accuracy =
+        100.0 - total_indirect_mispred_count as f64 * 100.0 / total_indirect_execution_count as f64;
+    println!(
+        "- Prediction accuracy of indirect branches: {:.2}% = 1 - {} / {}",
+        indirect_branch_prediction_accuracy,
+        total_indirect_mispred_count,
+        total_indirect_execution_count
     );
 
     let combined = SimulateResult {
         trace_path,
         conditional_branch_predictor,
+        indirect_branch_predictor,
         images,
         skip: 0,
         warmup: 0,
@@ -231,6 +272,9 @@ fn main() -> anyhow::Result<()> {
         cmpki,
         // handle NaN
         cond_branch_prediction_accuracy: Some(cond_branch_prediction_accuracy),
+        impki,
+        // handle NaN
+        indirect_branch_prediction_accuracy: Some(indirect_branch_prediction_accuracy),
     };
 
     println!("Combined result written to {}", args.output_path.display());

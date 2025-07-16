@@ -21,7 +21,7 @@
 //       \- final/
 //          \- {benchmark-name}-{command-index}.log -> ../tracer-name/{benchmark-name}-{command-index}.log
 
-use crate::list_conditional_branch_predictors;
+use crate::{list_conditional_branch_predictors, list_indirect_branch_predictors};
 use anyhow::bail;
 use skim::{
     Skim,
@@ -57,12 +57,16 @@ pub fn get_trace_dir<P1: AsRef<Path>, P2: AsRef<Path>>(
 pub fn get_simulate_dir<P: AsRef<Path>>(
     config_name: P,
     datetime: &str,
-    predictor: &str,
+    conditional_branch_predictor: &str,
+    indirect_branch_predictor: &str,
 ) -> PathBuf {
     PathBuf::from("benchmarks")
         .join(config_name)
         .join("simulate")
-        .join(format!("{}-{}", datetime, predictor))
+        .join(format!(
+            "{}-CBP-{}-IBP-{}",
+            datetime, conditional_branch_predictor, indirect_branch_predictor
+        ))
 }
 
 fn get_selection(selections: Vec<String>, prompt: &str) -> anyhow::Result<String> {
@@ -121,11 +125,20 @@ pub fn ask_for_simulate_dir<P: AsRef<Path>>(config_name: P) -> anyhow::Result<St
     get_selection(paths, "Choose simulation directory: ")
 }
 
-pub fn ask_for_predictor() -> anyhow::Result<String> {
+pub fn ask_for_conditional_branch_predictor() -> anyhow::Result<String> {
     let mut predictors = vec![];
     for predictor in list_conditional_branch_predictors().iter() {
         predictors.push(predictor.to_string());
     }
 
-    get_selection(predictors, "Choose branch predictor: ")
+    get_selection(predictors, "Choose conditional branch predictor: ")
+}
+
+pub fn ask_for_indirect_branch_predictor() -> anyhow::Result<String> {
+    let mut predictors = vec![];
+    for predictor in list_indirect_branch_predictors().iter() {
+        predictors.push(predictor.to_string());
+    }
+
+    get_selection(predictors, "Choose indirect branch predictor: ")
 }

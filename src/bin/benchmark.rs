@@ -1,8 +1,9 @@
 //! Operations on predefined benchmarks
 use anyhow::bail;
 use cbp_experiments::{
-    SimPointResult, ask_for_config_name, ask_for_predictor, ask_for_simulate_dir, get_config_path,
-    get_simpoint_dir, get_simulate_dir, get_trace_dir,
+    SimPointResult, ask_for_conditional_branch_predictor, ask_for_config_name,
+    ask_for_indirect_branch_predictor, ask_for_simulate_dir, get_config_path, get_simpoint_dir,
+    get_simulate_dir, get_trace_dir,
 };
 use chrono::Local;
 use clap::{Parser, Subcommand, ValueEnum};
@@ -83,9 +84,13 @@ enum Commands {
         #[arg(short, long)]
         config_name: Option<String>,
 
-        /// Predictor name
+        /// Conditional branch predictor name
         #[arg(short, long)]
-        predictor: Option<String>,
+        conditional_branch_predictor: Option<String>,
+
+        /// Indirect branch predictor name
+        #[arg(short, long)]
+        indirect_branch_predictor: Option<String>,
 
         /// Run in parallel
         #[arg(short, long, default_value_t = 1)]
@@ -458,7 +463,8 @@ fn main() -> anyhow::Result<()> {
         }
         Commands::Simulate {
             config_name,
-            predictor,
+            conditional_branch_predictor,
+            indirect_branch_predictor,
             parallel,
         } => {
             let config_name = match config_name {
@@ -468,16 +474,22 @@ fn main() -> anyhow::Result<()> {
             let config: Config =
                 serde_json::from_slice(&std::fs::read(get_config_path(&config_name))?)?;
 
-            let predictor = match predictor {
-                Some(predictor) => predictor.clone(),
-                None => ask_for_predictor()?,
+            let conditional_branch_predictor = match conditional_branch_predictor {
+                Some(conditional_branch_predictor) => conditional_branch_predictor.clone(),
+                None => ask_for_conditional_branch_predictor()?,
+            };
+
+            let indirect_branch_predictor = match indirect_branch_predictor {
+                Some(indirect_branch_predictor) => indirect_branch_predictor.clone(),
+                None => ask_for_indirect_branch_predictor()?,
             };
 
             // simulation result under "{simulate_dir}/"
             let simulate_dir = get_simulate_dir(
                 &config_name,
                 &Local::now().format("%Y%m%d-%H%M%S").to_string(),
-                &predictor,
+                &conditional_branch_predictor,
+                &indirect_branch_predictor,
             );
             create_dir_all(&simulate_dir)?;
 
@@ -516,7 +528,8 @@ fn main() -> anyhow::Result<()> {
                             command_index,
                             simpoint_index,
                             simpoint_config.clone(),
-                            predictor.clone(),
+                            conditional_branch_predictor.clone(),
+                            indirect_branch_predictor.clone(),
                             per_simpoint_dir.clone(),
                         ));
                     }
@@ -530,7 +543,8 @@ fn main() -> anyhow::Result<()> {
                             command_index,
                             simpoint_index,
                             simpoint_config,
-                            predictor,
+                            conditional_branch_predictor,
+                            indirect_branch_predictor,
                             per_simpoint_dir,
                         )| {
                             // trace file at "{simpoint_dir}/{benchmark.name}-{command_index}-simpoint-{simpoint_index}.log"
@@ -547,9 +561,10 @@ fn main() -> anyhow::Result<()> {
                                 benchmark.name, command_index, simpoint_index
                             ));
                             let args = format!(
-                                "target/release/simulate --trace-path {} --predictor {} --skip 0 --warmup {} --simulate {} --output-path {}",
+                                "target/release/simulate --trace-path {} --conditional-branch-predictor {} --indirect-branch-predictor {} --skip 0 --warmup {} --simulate {} --output-path {}",
                                 trace_file.display(),
-                                predictor,
+                                conditional_branch_predictor,
+                                indirect_branch_predictor,
                                 // half for warmup, half for simulate
                                 simpoint_config.size / 2,
                                 simpoint_config.size / 2,

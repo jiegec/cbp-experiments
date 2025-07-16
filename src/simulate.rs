@@ -19,6 +19,7 @@ pub struct SimulateResult {
     pub trace_path: Option<PathBuf>,
     pub images: Vec<ParsedImage>,
     pub conditional_branch_predictor: String,
+    pub indirect_branch_predictor: String,
 
     /// skip/warmup/simulate instruction count
     pub skip: u64,
@@ -26,7 +27,7 @@ pub struct SimulateResult {
     pub simulate: u64,
 
     /// overall statistics
-    /// number of conditional branch mispredictions, pmu branch-misses
+    /// number of all branch mispredictions, pmu branch-misses
     pub total_mispred_count: u64,
     /// number of branches runtime executions, pmu branches
     pub total_br_execution_count: u64,
@@ -38,6 +39,12 @@ pub struct SimulateResult {
     pub cmpki: f64,
     /// prediction accuracy of conditional branches (%)
     pub cond_branch_prediction_accuracy: Option<f64>,
+
+    /// indirect branch prediction
+    /// indirect branch mispredictions per kilo instructions
+    pub impki: f64,
+    /// prediction accuracy of indirect branches (%)
+    pub indirect_branch_prediction_accuracy: Option<f64>,
 
     /// per-branch statistics
     pub branch_info: Vec<SimulateResultBranchInfo>,
