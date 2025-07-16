@@ -10,7 +10,7 @@ AndreSeznecTAGESC192KB::AndreSeznecTAGESC192KB() {
   seq_no = 0;
 }
 
-bool AndreSeznecTAGESC192KB::get_conditonal_branch_prediction(uint64_t pc) {
+bool AndreSeznecTAGESC192KB::get_conditonal_branch_prediction(uint64_t pc, bool groundtruth) {
   return impl->predict(seq_no++, 0, pc);
 }
 

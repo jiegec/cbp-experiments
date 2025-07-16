@@ -10,7 +10,7 @@ AndreSeznecTAGESCL8KBOnlyTAGE::AndreSeznecTAGESCL8KBOnlyTAGE() {
 }
 
 bool AndreSeznecTAGESCL8KBOnlyTAGE::get_conditonal_branch_prediction(
-    uint64_t pc) {
+    uint64_t pc, bool groundtruth) {
   return impl->GetPrediction(pc);
 }
 

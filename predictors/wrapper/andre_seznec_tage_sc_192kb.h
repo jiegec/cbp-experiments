@@ -7,7 +7,7 @@ class CBP2025;
 class AndreSeznecTAGESC192KB : public ConditionalBranchPredictor {
 public:
   AndreSeznecTAGESC192KB();
-  bool get_conditonal_branch_prediction(uint64_t pc);
+  bool get_conditonal_branch_prediction(uint64_t pc, bool groundtruth);
   void update_conditional_branch_predictor(uint64_t pc, branch_type type,
                                            bool resolve_direction,
                                            bool predict_direction,

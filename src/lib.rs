@@ -48,6 +48,7 @@ mod ffi {
         pub fn get_conditonal_branch_prediction(
             self: Pin<&mut ConditionalBranchPredictor>,
             pc: u64,
+            groundtruth: bool,
         ) -> bool;
         pub fn update_conditional_branch_predictor(
             self: Pin<&mut ConditionalBranchPredictor>,

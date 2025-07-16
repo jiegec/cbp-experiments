@@ -9,7 +9,7 @@ AndreSeznecTAGESCL8KB::AndreSeznecTAGESCL8KB() {
   impl = new andre_seznec_tage_sc_l_8kb::PREDICTOR;
 }
 
-bool AndreSeznecTAGESCL8KB::get_conditonal_branch_prediction(uint64_t pc) {
+bool AndreSeznecTAGESCL8KB::get_conditonal_branch_prediction(uint64_t pc, bool groundtruth) {
   return impl->GetPrediction(pc);
 }
 

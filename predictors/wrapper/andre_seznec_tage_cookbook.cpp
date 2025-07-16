@@ -9,7 +9,8 @@ AndreSeznecTAGECookbook::AndreSeznecTAGECookbook() {
   impl = new andre_seznec_tage_cookbook::PREDICTOR;
 }
 
-bool AndreSeznecTAGECookbook::get_conditonal_branch_prediction(uint64_t pc) {
+bool AndreSeznecTAGECookbook::get_conditonal_branch_prediction(
+    uint64_t pc, bool groundtruth) {
   return impl->GetPrediction(pc);
 }
 

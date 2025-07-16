@@ -10,7 +10,7 @@ AndreSeznecUnlimited::AndreSeznecUnlimited() {
   impl = new andre_seznec_unlimited::PREDICTOR;
 }
 
-bool AndreSeznecUnlimited::get_conditonal_branch_prediction(uint64_t pc) {
+bool AndreSeznecUnlimited::get_conditonal_branch_prediction(uint64_t pc, bool groundtruth) {
   return impl->GetPrediction(pc);
 }
 
