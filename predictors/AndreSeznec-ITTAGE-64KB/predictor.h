@@ -1,6 +1,6 @@
 #ifdef INCLUDEPRED
 /* 
-Code has been largely inspired  by the tagged PPM predictor simulator from Pierre Michaud, the OGEHL predictor simulator from by André Seznec, the TAGE predictor simulator from  André Seznec and Pierre Michaud, the L-TAGE simulator by Andre Seznec
+Code has been largely inspired  by the tagged PPM predictor simulator from Pierre Michaud, the OGEHL predictor simulator from by Andre Seznec, the TAGE predictor simulator from  Andre Seznec and Pierre Michaud, the L-TAGE simulator by Andre Seznec
 */
 
 #include <inttypes.h>
@@ -68,7 +68,7 @@ class specentry
 {
 public:
   int32_t tag;
-  uint32_t pred;
+  uint64_t pred;
   specentry (){//nothing
 }
 };
@@ -93,7 +93,7 @@ public:
 class regionentry		// ITTAGE target region  table entry
 {
 public:
-     uint16_t region; // 14 bits
+     uint64_t region; // 46 bits
 
   int8_t u; //1 bit
     regionentry ()
@@ -133,12 +133,12 @@ int GI[NHIST + 1] ;		// indexes to the different tables are computed only once
 int GTAG[NHIST + 1];		// tags for the different tables are computed only once  
 
 
-uint32_t pred_taken;		// prediction
-uint32_t alttaken;		// alternate  TAGEprediction
-uint32_t tage_pred;		// TAGE prediction
+uint64_t pred_taken;		// prediction
+uint64_t alttaken;		// alternate  TAGEprediction
+uint64_t tage_pred;		// TAGE prediction
 int HitBank;			// longest matching bank
 int AltBank;			// alternate matching bank
-uint32_t LongestMatchPred;
+uint64_t LongestMatchPred;
 
 int Seed;			// for the pseudo-random number generator
 
@@ -299,8 +299,8 @@ for (int i = 0; i <= NHIST; i++)
       (1 << (logg[STEP2]));
 #endif
  fprintf(stdout, "ITTAGE tables: %d bytes;",  STORAGESIZE/8);
- fprintf(stdout, "Region table: %d bytes;",  15*128/8);
-    STORAGESIZE += 15 * 128;	//Region Table (14 bits Region + 1 bit for replacement)
+ fprintf(stdout, "Region table: %d bytes;",  47*128/8);
+    STORAGESIZE += 47 * 128;	//Region Table (46 bits Region + 1 bit for replacement)
 #ifdef IUM
 fprintf(stdout, "IUM: %d bytes;",  (1 << LOGSPEC) * 48/8);
     STORAGESIZE += (1 << LOGSPEC) * 48;	//entries in the speculative update table are 32 bits + 16 tag bits
@@ -398,7 +398,7 @@ fprintf (stdout,
   }
 
   // PREDICTION
-  uint32_t predict_brindirect (unsigned int pc, uint16_t brtype)
+  uint64_t predict_brindirect (uint64_t pc, uint16_t brtype)
   {
     if (brtype & IS_BR_INDIRECT)
       {
@@ -436,7 +436,7 @@ fprintf (stdout,
 	return pred_taken;
 
       }
-    uint32_t PredSpecIUM (uint32_t pred)
+    uint64_t PredSpecIUM (uint64_t pred)
     {
 #ifdef IUM
 
@@ -458,7 +458,7 @@ fprintf (stdout,
 
     }
 
-    void UpdateSpecIUM (uint32_t Target)
+    void UpdateSpecIUM (uint64_t Target)
     {
 #ifdef IUM
       int IumTag = (HitBank) + (GI[HitBank] << 4);
@@ -471,8 +471,8 @@ fprintf (stdout,
 
 
 //  UPDATE  FETCH HISTORIES  
-    void FetchHistoryUpdate (uint32_t pc, uint16_t brtype, bool taken,
-			     uint32_t target)
+    void FetchHistoryUpdate (uint64_t pc, uint16_t brtype, bool taken,
+			     uint64_t target)
     {
       if (brtype & IS_BR_INDIRECT)
 	{
@@ -484,8 +484,8 @@ fprintf (stdout,
 
 
 
-    void HistoryUpdate (uint32_t pc, uint16_t brtype, bool taken,
-			uint32_t target,  int &Y, folded_history * H,
+    void HistoryUpdate (uint64_t pc, uint16_t brtype, bool taken,
+			uint64_t target,  int &Y, folded_history * H,
 			folded_history * G, folded_history * J)
     {
 
@@ -521,8 +521,8 @@ fprintf (stdout,
 
 // PREDICTOR UPDATE
 
-    void update_brindirect (uint32_t pc, uint16_t brtype, bool taken,
-			    uint32_t target)
+    void update_brindirect (uint64_t pc, uint16_t brtype, bool taken,
+			    uint64_t target)
     {
       int NRAND = MYRANDOM ();
 
@@ -594,7 +594,7 @@ fprintf (stdout,
 	    {
 
 //Need to compute the target field (Offset + Region pointer)
-	      int Region = (target >> 18);
+	      uint64_t Region = (target >> 18);
 	      int PtRegion = -1;
 //Associative search on the region table
 	      for (int i = 0; i < 128; i++)
@@ -690,7 +690,7 @@ fprintf (stdout,
 	      else
               {// replace the target field by the new target
 // Need to compute the target field :-)
-		  int Region = (target >> 18);
+		  uint64_t Region = (target >> 18);
 		  int PtRegion = -1;
 
 		  for (int i = 0; i < 128; i++)
