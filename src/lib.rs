@@ -39,13 +39,13 @@ mod ffi {
         pub fn new_conditional_branch_predictor(
             name: &str,
         ) -> UniquePtr<ConditionalBranchPredictor>;
-        pub fn list_conditonal_branch_predictors() -> UniquePtr<CxxVector<CxxString>>;
+        pub fn list_conditional_branch_predictors() -> UniquePtr<CxxVector<CxxString>>;
         // for conditional branch:
-        // 1. call get_conditonal_branch_prediction to get prediction
+        // 1. call get_conditional_branch_prediction to get prediction
         // 2. call update_conditional_branch_predictor to update predictor state
         // for other branches:
         // 2. call update_conditional_branch_predictor_other_inst to update predictor state
-        pub fn get_conditonal_branch_prediction(
+        pub fn get_conditional_branch_prediction(
             self: Pin<&mut ConditionalBranchPredictor>,
             pc: u64,
             groundtruth: bool,
@@ -63,6 +63,28 @@ mod ffi {
             pc: u64,
             branch_type: BranchType,
             branch_taken: bool,
+            branch_target: u64,
+        );
+
+        type IndirectBranchPredictor;
+
+        pub fn new_indirect_branch_predictor(name: &str) -> UniquePtr<IndirectBranchPredictor>;
+        pub fn list_indirect_branch_predictors() -> UniquePtr<CxxVector<CxxString>>;
+        // for indirect branch:
+        // 1. call get_indirect_branch_prediction
+        // 2. call update_indirect_branch_predictor to update predictor state
+        // for other branches:
+        // 2. call update_indirect_branch_predictor to update predictor state
+        pub fn get_indirect_branch_prediction(
+            self: Pin<&mut IndirectBranchPredictor>,
+            pc: u64,
+            groundtruth: u64,
+        ) -> u64;
+        pub fn update_indirect_branch_predictor(
+            self: Pin<&mut IndirectBranchPredictor>,
+            pc: u64,
+            branch_type: BranchType,
+            taken: bool,
             branch_target: u64,
         );
     }

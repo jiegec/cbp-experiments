@@ -3,7 +3,7 @@
 
 IdealCBP::IdealCBP() {}
 
-bool IdealCBP::get_conditonal_branch_prediction(uint64_t pc, bool groundtruth) {
+bool IdealCBP::get_conditional_branch_prediction(uint64_t pc, bool groundtruth) {
   return groundtruth;
 }
 

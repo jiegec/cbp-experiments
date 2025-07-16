@@ -117,7 +117,7 @@ fn main() -> anyhow::Result<()> {
                 // requires prediction
                 let predict = predictor_mut
                     .as_mut()
-                    .get_conditonal_branch_prediction(branch.inst_addr, entry.get_taken());
+                    .get_conditional_branch_prediction(branch.inst_addr, entry.get_taken());
                 if instructions >= args.skip + args.warmup {
                     branch_infos[entry.get_br_index()].mispred_count +=
                         (predict != entry.get_taken()) as u64;

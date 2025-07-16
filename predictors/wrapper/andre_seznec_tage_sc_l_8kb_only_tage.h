@@ -7,7 +7,7 @@ class PREDICTOR;
 class AndreSeznecTAGESCL8KBOnlyTAGE : public ConditionalBranchPredictor {
 public:
   AndreSeznecTAGESCL8KBOnlyTAGE();
-  bool get_conditonal_branch_prediction(uint64_t pc, bool groundtruth);
+  bool get_conditional_branch_prediction(uint64_t pc, bool groundtruth);
   void update_conditional_branch_predictor(uint64_t pc, branch_type type,
                                            bool resolve_direction,
                                            bool predict_direction,

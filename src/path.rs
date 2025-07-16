@@ -21,7 +21,7 @@
 //       \- final/
 //          \- {benchmark-name}-{command-index}.log -> ../tracer-name/{benchmark-name}-{command-index}.log
 
-use crate::list_conditonal_branch_predictors;
+use crate::list_conditional_branch_predictors;
 use anyhow::bail;
 use skim::{
     Skim,
@@ -123,7 +123,7 @@ pub fn ask_for_simulate_dir<P: AsRef<Path>>(config_name: P) -> anyhow::Result<St
 
 pub fn ask_for_predictor() -> anyhow::Result<String> {
     let mut predictors = vec![];
-    for predictor in list_conditonal_branch_predictors().iter() {
+    for predictor in list_conditional_branch_predictors().iter() {
         predictors.push(predictor.to_string());
     }
 
