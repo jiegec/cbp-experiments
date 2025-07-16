@@ -25,3 +25,6 @@ PREDICTOR(AndreSeznec-TAGE-Cookbook, AndreSeznecTAGECookbook)
 // https://ericrotenberg.wordpress.ncsu.edu/cbp2025/
 // https://drive.google.com/file/d/14EJlnzk_avmiaYMNSRUGpPf7DLCAdJBq/view?usp=sharing
 PREDICTOR(AndreSeznec-TAGE-SC-192KB, AndreSeznecTAGESC192KB)
+
+// Ideal CBP
+PREDICTOR(Ideal, IdealCBP)

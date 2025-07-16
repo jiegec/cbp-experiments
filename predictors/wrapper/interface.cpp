@@ -7,6 +7,7 @@
 #include "andre_seznec_tage_sc_l_8kb_only_tage.h"
 #include "andre_seznec_unlimited.h"
 #include "cbp-experiments/src/lib.rs.h"
+#include "ideal_cbp.h"
 #include <memory>
 
 std::unique_ptr<ConditionalBranchPredictor>
