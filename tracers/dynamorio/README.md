@@ -1,8 +1,22 @@
 # dynamorio tracer
 
-Build:
+Build and install dynamorio to `~/prefix/dynamorio`:
 
 ```shell
+git clone git@github.com:DynamoRIO/dynamorio.git
+cd dynamorio
+git submodule update --init --recursive
+mkdir build
+cd build
+cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/prefix/dynamorio
+make -j8
+make install
+```
+
+Build tracer:
+
+```shell
+sudo apt install -y libzstd-dev
 mkdir -p build
 cd build
 cmake .. -DCMAKE_PREFIX_PATH=$HOME/prefix/dynamorio

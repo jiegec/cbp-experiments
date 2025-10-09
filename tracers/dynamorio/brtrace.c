@@ -317,7 +317,7 @@ void dr_client_main(client_id_t id, int argc, const char *argv[]) {
   client_id = id;
   tls_idx = drmgr_register_tls_field();
 
-  dr_register_exit_event(event_exit);
+  drmgr_register_exit_event(event_exit);
   if (!drmgr_register_module_load_event(event_module_load) ||
       !drmgr_register_thread_init_event(event_thread_init) ||
       !drmgr_register_thread_exit_event(event_thread_exit) ||

@@ -60,7 +60,7 @@ pub fn create_inst_index_mapping_from_images(
         // parse instructions in the image
         if image_filename == "[vdso]" {
             // use our dumped vdso
-            image_filename = "tracers/intel-pt/vdso".to_string();
+            image_filename = "tracers/common/vdso".to_string();
         }
         let binary_data = std::fs::read(&image_filename)?;
         let file = object::File::parse(&*binary_data)?;
