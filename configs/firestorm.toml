@@ -1,0 +1,294 @@
+[[history_registers]]
+
+# PHRT
+[history_registers.PHR]
+name = "PHRT"
+length = 100
+shift = 1
+# T[31:2]
+footprint = [
+    [{T = 31}],
+    [{T = 30}],
+    [{T = 29}],
+    [{T = 28}],
+    [{T = 27}],
+    [{T = 26}],
+    [{T = 25}],
+    [{T = 24}],
+    [{T = 23}],
+    [{T = 22}],
+    [{T = 21}],
+    [{T = 20}],
+    [{T = 19}],
+    [{T = 18}],
+    [{T = 17}],
+    [{T = 16}],
+    [{T = 15}],
+    [{T = 14}],
+    [{T = 13}],
+    [{T = 12}],
+    [{T = 11}],
+    [{T = 10}],
+    [{T = 9}],
+    [{T = 8}],
+    [{T = 7}],
+    [{T = 6}],
+    [{T = 5}],
+    [{T = 4}],
+    [{T = 3}],
+    [{T = 2}],
+]
+
+[[history_registers]]
+
+# PHRB
+[history_registers.PHR]
+name = "PHRB"
+length = 28
+shift = 1
+# B[5:2]
+footprint = [
+    [{B = 5}],
+    [{B = 4}],
+    [{B = 3}],
+    [{B = 2}],
+]
+
+# table 0, no history
+[[tables]]
+index_bits = [
+    [{PC = 10}],
+    [{PC = 9}],
+    [{PC = 8}],
+    [{PC = 7}],
+    [{PC = 6}],
+    [{PC = 5}],
+    [{PC = 4}],
+    [{PC = 3}],
+    [{PC = 2}],
+]
+tag_bits = [
+    [{PC = 18}],
+    [{PC = 17}],
+    [{PC = 16}],
+    [{PC = 15}],
+    [{PC = 14}],
+    [{PC = 13}],
+    [{PC = 12}],
+    [{PC = 11}],
+]
+ways = 2
+counter_width = 2
+
+# table 1, 6 bit PHRT, 6 bit PHRB, 6 way, 11 index bits
+[[tables]]
+index_bits = [
+    [{PC = 6}],
+    [{PC = 7}, {PC = 8}, {HR = [1, 0]}, {HR = [1, 1]}], # PHRB[0], PHRB[1]
+    [{PC = 9}, {HR = [1, 2]}], # PHRB[2]
+    [{PC = 10}, {HR = [1, 3]}], # PHRB[3]
+    [{PC = 11}, {HR = [1, 4]}], # PHRB[4]
+    [{PC = 12}, {HR = [1, 5]}], # PHRB[5]
+    [{PC = 14}, {PC = 15}, {HR = [0, 0]}, {HR = [0, 1]}], # PHRT[0], PHRT[1]
+    [{PC = 16}, {HR = [0, 2]}], # PHRT[2]
+    [{PC = 17}, {HR = [0, 3]}], # PHRT[3]
+    [{PC = 18}, {HR = [0, 4]}], # PHRT[4]
+    [{PC = 13}, {HR = [0, 5]}], # PHRT[5]
+]
+tag_bits = [
+    [{PC = 7}, {HR = [0, 0]}], # PHRT[0]
+    [{PC = 8}, {HR = [0, 1]}], # PHRT[1]
+    [{PC = 9}, {HR = [0, 2]}], # PHRT[2]
+    [{PC = 10}, {HR = [0, 3]}], # PHRT[3]
+    [{PC = 11}, {HR = [0, 4]}, {HR = [1, 0]}], # PHRT[4], PHRB[0]
+    [{PC = 12}, {HR = [0, 5]}, {HR = [1, 1]}], # PHRT[5], PHRB[1]
+    [{PC = 13}, {HR = [1, 2]}], # PHRB[2]
+    [{PC = 14}, {HR = [1, 3]}], # PHRB[3]
+    [{PC = 15}, {HR = [1, 4]}], # PHRB[4]
+    [{PC = 16}, {HR = [1, 5]}], # PHRB[5]
+    [{PC = 17}],
+    [{PC = 18}],
+    [{PC = 5}],
+    [{PC = 4}],
+    [{PC = 3}],
+    [{PC = 2}]
+]
+ways = 6
+counter_width = 2
+
+# table 2, 11 bit PHRT, 11 bit PHRB, 6 way, 11 index bits
+[[tables]]
+index_bits = [
+    [{PC = 6}],
+    [{PC = 7}, {HR = [0, 3]}, {HR = [1, 7]}], # PHRT[3], PHRB[7]
+    [{PC = 8}, {HR = [0, 4]}, {HR = [1, 8]}], # PHRT[4], PHRB[8]
+    [{PC = 9}, {HR = [0, 5]}, {HR = [1, 9]}], # PHRT[5], PHRB[9]
+    [{PC = 10}, {HR = [0, 6]}, {HR = [1, 0]}], # PHRT[6], PHRB[0]
+    [{PC = 11}, {HR = [0, 7]}, {HR = [1, 1]}], # PHRT[7], PHRB[1]
+    [{PC = 12}, {HR = [0, 8]}, {HR = [1, 2]}], # PHRT[8], PHRB[2]
+    [{PC = 13}, {HR = [0, 9]}, {HR = [1, 3]}], # PHRT[9], PHRB[3]
+    [{PC = 14}, {HR = [0, 10]}, {HR = [1, 4]}], # PHRT[10], PHRB[4]
+    [{HR = [0, 0]}, {HR = [0, 1]}, {HR = [1, 5]}], # PHRT[0], PHRT[1], PHRB[5]
+    [{HR = [0, 2]}, {HR = [1, 6]}, {HR = [1, 10]}], # PHRT[2], PHRB[6], PHRB[10]
+]
+tag_bits = [
+    [{PC = 7}, {HR = [0, 0]}, {HR = [1, 8]}], # PHRT[0], PHRB[8]
+    [{PC = 8}, {HR = [0, 1]}, {HR = [1, 9]}], # PHRT[1], PHRB[9]
+    [{PC = 9}, {HR = [0, 2]}, {HR = [1, 10]}], # PHRT[2], PHRB[10]
+    [{PC = 10}, {HR = [0, 3]}], # PHRT[3]
+    [{PC = 11}, {HR = [0, 4]}, {HR = [1, 0]}], # PHRT[4], PHRB[0]
+    [{PC = 12}, {HR = [0, 5]}, {HR = [1, 1]}], # PHRT[5], PHRB[1]
+    [{PC = 13}, {HR = [0, 6]}, {HR = [1, 2]}], # PHRT[6], PHRB[2]
+    [{PC = 14}, {HR = [0, 7]}, {HR = [1, 3]}], # PHRT[7], PHRB[3]
+    [{PC = 15}, {HR = [0, 8]}, {HR = [1, 4]}], # PHRT[8], PHRB[4]
+    [{PC = 16}, {HR = [0, 9]}, {HR = [1, 5]}], # PHRT[9], PHRB[5]
+    [{PC = 17}, {HR = [0, 10]}, {HR = [1, 6]}], # PHRT[10], PHRB[6]
+    [{PC = 18}, {HR = [1, 7]}], # PHRB[7]
+    [{PC = 5}],
+    [{PC = 4}],
+    [{PC = 3}],
+    [{PC = 2}]
+]
+ways = 6
+counter_width = 2
+
+# table 3, 18 bit PHRT, 18 bit PHRB, 4 way, 11 index bits
+[[tables]]
+index_bits = [
+    [{PC = 6}],
+    [{HR = [0, 0]}, {HR = [0, 15]}, {HR = [1, 2]}], # PHRT[0], PHRT[15], PHRB[2]
+    [{HR = [0, 1]}, {HR = [0, 17]}, {HR = [1, 4]}], # PHRT[1], PHRT[17], PHRB[4]
+    [{HR = [0, 3]}, {HR = [0, 4]}, {HR = [1, 5]}], # PHRT[3], PHRT[4], PHRB[5]
+    [{HR = [0, 5]}, {HR = [1, 6]}, {HR = [1, 13]}], # PHRT[5], PHRB[6], PHRB[13]
+    [{HR = [0, 7]}, {HR = [1, 8]}, {HR = [1, 15]}], # PHRT[7], PHRB[8], PHRB[15]
+    [{HR = [0, 8]}, {HR = [1, 9]}, {HR = [1, 16]}], # PHRT[8], PHRB[9], PHRB[16]
+    [{HR = [0, 10]}, {HR = [1, 11]}, {HR = [1, 17]}], # PHRT[10], PHRB[11], PHRB[17]
+    [{PC = 8}, {HR = [0, 11]}, {HR = [1, 12]}], # PHRT[11], PHRB[12]
+    [{PC = 9}, {HR = [0, 12]}, {HR = [1, 0]}], # PHRT[12], PHRB[0]
+    [{PC = 11}, {HR = [0, 14]}, {HR = [1, 1]}], # PHRT[14], PHRB[1]
+]
+tag_bits = [
+    [{PC = 7}, {HR = [0, 0]}, {HR = [0, 12]}, {HR = [1, 8]}], # PHRT[0], PHRT[12], PHRB[8]
+    [{PC = 8}, {HR = [0, 1]}, {HR = [0, 13]}, {HR = [1, 9]}], # PHRT[1], PHRT[13], PHRB[9]
+    [{PC = 9}, {HR = [0, 2]}, {HR = [0, 14]}, {HR = [1, 10]}], # PHRT[2], PHRT[14], PHRB[10]
+    [{PC = 10}, {HR = [0, 3]}, {HR = [0, 15]}, {HR = [1, 11]}, {HR = [1, 12]}], # PHRT[3], PHRT[15], PHRB[11], PHRB[12]
+    [{PC = 11}, {HR = [0, 4]}, {HR = [0, 16]}, {HR = [1, 0]}, {HR = [1, 13]}], # PHRT[4], PHRT[16], PHRB[0], PHRB[13]
+    [{PC = 12}, {HR = [0, 5]}, {HR = [0, 17]}, {HR = [1, 1]}, {HR = [1, 14]}], # PHRT[5], PHRT[17], PHRB[1], PHRB[14]
+    [{PC = 13}, {HR = [0, 6]}, {HR = [1, 2]}, {HR = [1, 15]}], # PHRT[6], PHRB[2], PHRB[15]
+    [{PC = 14}, {HR = [0, 7]}, {HR = [1, 3]}, {HR = [1, 16]}], # PHRT[7], PHRB[3], PHRB[16]
+    [{PC = 15}, {HR = [0, 8]}, {HR = [1, 4]}, {HR = [1, 17]}], # PHRT[8], PHRB[4], PHRB[17]
+    [{PC = 16}, {HR = [0, 9]}, {HR = [1, 5]}], # PHRT[9], PHRB[5]
+    [{PC = 17}, {HR = [0, 10]}, {HR = [1, 6]}], # PHRT[10], PHRB[6]
+    [{PC = 18}, {HR = [0, 11]}, {HR = [1, 7]}], # PHRT[11], PHRB[7]
+    [{PC = 5}],
+    [{PC = 4}],
+    [{PC = 3}],
+    [{PC = 2}]
+]
+ways = 4
+counter_width = 2
+
+# table 4, 32 bit PHRT, 28 bit PHRB, 4 way, 10 index bits
+[[tables]]
+index_bits = [
+    [{PC = 6}],
+    [{HR = [0, 1]}, {HR = [0, 26]}, {HR = [1, 19]}], # PHRT[1], PHRT[26], PHRB[19]
+    [{HR = [0, 3]}, {HR = [0, 28]}, {HR = [1, 0]}], # PHRT[3], PHRT[28], PHRB[0]
+    [{HR = [0, 6]}, {HR = [0, 31]}, {HR = [1, 2]}], # PHRT[6], PHRT[31], PHRB[2]
+    [{HR = [0, 8]}, {HR = [0, 11]}, {HR = [1, 4]}], # PHRT[8], PHRT[11], PHRB[4]
+    [{HR = [0, 13]}, {HR = [1, 7]}, {HR = [1, 22]}], # PHRT[13], PHRB[7], PHRB[22]
+    [{HR = [0, 16]}, {HR = [1, 9]}, {HR = [1, 24]}], # PHRT[16], PHRB[9], PHRB[24]
+    [{HR = [0, 18]}, {HR = [1, 12]}, {HR = [1, 27]}], # PHRT[18], PHRB[12], PHRB[27]
+    [{PC = 8}, {HR = [0, 21]}, {HR = [1, 14]}], # PHRT[21], PHRB[14]
+    [{PC = 11}, {HR = [0, 23]}, {HR = [1, 17]}], # PHRT[23], PHRB[17]
+]
+tag_bits = [
+    [{PC = 7}, {HR = [0, 0]}, {HR = [0, 12]}, {HR = [0, 24]}, {HR = [1, 8]}, {HR = [1, 21]}], # PHRT[0], PHRT[12], PHRT[24], PHRB[8], PHRB[21]
+    [{PC = 8}, {HR = [0, 1]}, {HR = [0, 13]}, {HR = [0, 25]}, {HR = [1, 9]}, {HR = [1, 22]}], # PHRT[1], PHRT[13], PHRT[25], PHRB[9], PHRB[22]
+    [{PC = 9}, {HR = [0, 2]}, {HR = [0, 14]}, {HR = [0, 26]}, {HR = [1, 10]}, {HR = [1, 23]}, {HR = [1, 24]}], # PHRT[2], PHRT[14], PHRT[26], PHRB[10], PHRB[23], PHRB[24]
+    [{PC = 10}, {HR = [0, 3]}, {HR = [0, 15]}, {HR = [0, 27]}, {HR = [1, 11]}, {HR = [1, 12]}, {HR = [1, 25]}], # PHRT[3], PHRT[15], PHRT[27], PHRB[11], PHRB[12], PHRB[25]
+    [{PC = 11}, {HR = [0, 4]}, {HR = [0, 16]}, {HR = [0, 28]}, {HR = [1, 0]}, {HR = [1, 13]}, {HR = [1, 26]}], # PHRT[4], PHRT[16], PHRT[28], PHRB[0], PHRB[13], PHRB[26]
+    [{PC = 12}, {HR = [0, 5]}, {HR = [0, 17]}, {HR = [0, 29]}, {HR = [1, 1]}, {HR = [1, 14]}, {HR = [1, 27]}], # PHRT[5], PHRT[17], PHRT[29], PHRB[1], PHRB[14], PHRB[27]
+    [{PC = 13}, {HR = [0, 6]}, {HR = [0, 18]}, {HR = [0, 30]}, {HR = [1, 2]}, {HR = [1, 15]}], # PHRT[6], PHRT[18], PHRT[30], PHRB[2], PHRB[15]
+    [{PC = 14}, {HR = [0, 7]}, {HR = [0, 19]}, {HR = [1, 3]}, {HR = [1, 16]}], # PHRT[7], PHRT[19], PHRB[3], PHRB[16]
+    [{PC = 15}, {HR = [0, 8]}, {HR = [0, 20]}, {HR = [1, 4]}, {HR = [1, 17]}], # PHRT[8], PHRT[20], PHRB[4], PHRB[17]
+    [{PC = 16}, {HR = [0, 9]}, {HR = [0, 21]}, {HR = [1, 5]}, {HR = [1, 18]}], # PHRT[9], PHRT[21], PHRB[5], PHRB[18]
+    [{PC = 17}, {HR = [0, 10]}, {HR = [0, 22]}, {HR = [1, 6]}, {HR = [1, 19]}], # PHRT[10], PHRT[22], PHRB[6], PHRB[19]
+    [{PC = 18}, {HR = [0, 11]}, {HR = [0, 23]}, {HR = [1, 7]}, {HR = [1, 20]}], # PHRT[11], PHRT[23], PHRB[7], PHRB[20]
+    [{PC = 5}],
+    [{PC = 4}],
+    [{PC = 3}],
+    [{PC = 2}]
+]
+ways = 4
+counter_width = 2
+
+# table 5, 57 bit PHRT, 28 bit PHRB, 4 way, 10 index bits
+[[tables]]
+index_bits = [
+    [{PC = 6}],
+    [{HR = [0, 1]}, {HR = [0, 35]}, {HR = [1, 10]}], # PHRT[1], PHRT[35], PHRB[10]
+    [{HR = [0, 4]}, {HR = [0, 38]}, {HR = [1, 13]}], # PHRT[4], PHRT[38], PHRB[13]
+    [{HR = [0, 8]}, {HR = [0, 42]}, {HR = [1, 17]}], # PHRT[8], PHRT[42], PHRB[17]
+    [{HR = [0, 11]}, {HR = [0, 45]}, {HR = [1, 20]}], # PHRT[11], PHRT[45], PHRB[20]
+    [{HR = [0, 14]}, {HR = [0, 49]}, {HR = [1, 23]}], # PHRT[14], PHRT[49], PHRB[23]
+    [{HR = [0, 18]}, {HR = [0, 52]}, {HR = [1, 27]}], # PHRT[18], PHRT[52], PHRB[27]
+    [{HR = [0, 21]}, {HR = [0, 56]}, {HR = [1, 0]}], # PHRT[21], PHRT[56], PHRB[0]
+    [{HR = [0, 25]}, {HR = [0, 28]}, {HR = [1, 3]}], # PHRT[25], PHRT[28], PHRB[3]
+    [{PC = 9}, {HR = [0, 32]}, {HR = [1, 6]}], # PHRT[32], PHRB[6]
+]
+tag_bits = [
+    [{PC = 7}, {HR = [0, 0]}, {HR = [0, 12]}, {HR = [0, 24]}, {HR = [0, 36]}, {HR = [0, 48]}, {HR = [1, 8]}, {HR = [1, 21]}], # PHRT[0], PHRT[12], PHRT[24], PHRT[36], PHRT[48], PHRB[8], PHRB[21]
+    [{PC = 8}, {HR = [0, 1]}, {HR = [0, 13]}, {HR = [0, 25]}, {HR = [0, 37]}, {HR = [0, 49]}, {HR = [1, 9]}, {HR = [1, 22]}], # PHRT[1], PHRT[13], PHRT[25], PHRT[37], PHRT[49], PHRB[9], PHRB[22]
+    [{PC = 9}, {HR = [0, 2]}, {HR = [0, 14]}, {HR = [0, 26]}, {HR = [0, 38]}, {HR = [0, 50]}, {HR = [1, 10]}, {HR = [1, 23]}, {HR = [1, 24]}], # PHRT[2], PHRT[14], PHRT[26], PHRT[38], PHRT[50], PHRB[10], PHRB[23], PHRB[24]
+    [{PC = 10}, {HR = [0, 3]}, {HR = [0, 15]}, {HR = [0, 27]}, {HR = [0, 39]}, {HR = [0, 51]}, {HR = [1, 11]}, {HR = [1, 12]}, {HR = [1, 25]}], # PHRT[3], PHRT[15], PHRT[27], PHRT[39], PHRT[51], PHRB[11], PHRB[12], PHRB[25]
+    [{PC = 11}, {HR = [0, 4]}, {HR = [0, 16]}, {HR = [0, 28]}, {HR = [0, 40]}, {HR = [0, 52]}, {HR = [1, 0]}, {HR = [1, 13]}, {HR = [1, 26]}], # PHRT[4], PHRT[16], PHRT[28], PHRT[40], PHRT[52], PHRB[0], PHRB[13], PHRB[26]
+    [{PC = 12}, {HR = [0, 5]}, {HR = [0, 17]}, {HR = [0, 29]}, {HR = [0, 41]}, {HR = [0, 53]}, {HR = [1, 1]}, {HR = [1, 14]}, {HR = [1, 27]}], # PHRT[5], PHRT[17], PHRT[29], PHRT[41], PHRT[53], PHRB[1], PHRB[14], PHRB[27]
+    [{PC = 13}, {HR = [0, 6]}, {HR = [0, 18]}, {HR = [0, 30]}, {HR = [0, 42]}, {HR = [0, 54]}, {HR = [1, 2]}, {HR = [1, 15]}], # PHRT[6], PHRT[18], PHRT[30], PHRT[42], PHRT[54], PHRB[2], PHRB[15]
+    [{PC = 14}, {HR = [0, 7]}, {HR = [0, 19]}, {HR = [0, 31]}, {HR = [0, 43]}, {HR = [0, 55]}, {HR = [1, 3]}, {HR = [1, 16]}], # PHRT[7], PHRT[19], PHRT[31], PHRT[43], PHRT[55], PHRB[3], PHRB[16]
+    [{PC = 15}, {HR = [0, 8]}, {HR = [0, 20]}, {HR = [0, 32]}, {HR = [0, 44]}, {HR = [0, 56]}, {HR = [1, 4]}, {HR = [1, 17]}], # PHRT[8], PHRT[20], PHRT[32], PHRT[44], PHRT[56], PHRB[4], PHRB[17]
+    [{PC = 16}, {HR = [0, 9]}, {HR = [0, 21]}, {HR = [0, 33]}, {HR = [0, 45]}, {HR = [1, 5]}, {HR = [1, 18]}], # PHRT[9], PHRT[21], PHRT[33], PHRT[45], PHRB[5], PHRB[18]
+    [{PC = 17}, {HR = [0, 10]}, {HR = [0, 22]}, {HR = [0, 34]}, {HR = [0, 46]}, {HR = [1, 6]}, {HR = [1, 19]}], # PHRT[10], PHRT[22], PHRT[34], PHRT[46], PHRB[6], PHRB[19]
+    [{PC = 18}, {HR = [0, 11]}, {HR = [0, 23]}, {HR = [0, 35]}, {HR = [0, 47]}, {HR = [1, 7]}, {HR = [1, 20]}], # PHRT[11], PHRT[23], PHRT[35], PHRT[47], PHRB[7], PHRB[20]
+    [{PC = 5}],
+    [{PC = 4}],
+    [{PC = 3}],
+    [{PC = 2}]
+]
+ways = 4
+counter_width = 2
+
+# table 6, 100 bit PHRT, 28 bit PHRB, 4 way, 10 index bits
+[[tables]]
+index_bits = [
+    [{PC = 6}],
+    [{HR = [0, 2]}, {HR = [0, 43]}, {HR = [0, 93]}], # PHRT[2], PHRT[43], PHRT[93]
+    [{HR = [0, 7]}, {HR = [0, 48]}, {HR = [0, 99]}], # PHRT[7], PHRT[48], PHRT[99]
+    [{HR = [0, 12]}, {HR = [0, 63]}, {HR = [1, 5]}], # PHRT[12], PHRT[63], PHRB[5]
+    [{HR = [0, 17]}, {HR = [0, 68]}, {HR = [1, 10]}], # PHRT[17], PHRT[68], PHRB[10]
+    [{HR = [0, 22]}, {HR = [0, 73]}, {HR = [1, 15]}], # PHRT[22], PHRT[73], PHRB[15]
+    [{HR = [0, 27]}, {HR = [0, 78]}, {HR = [1, 20]}], # PHRT[27], PHRT[78], PHRB[20]
+    [{HR = [0, 33]}, {HR = [0, 83]}, {HR = [1, 25]}], # PHRT[33], PHRT[83], PHRB[25]
+    [{PC = 9}, {HR = [0, 38]}, {HR = [0, 88]}], # PHRT[38], PHRT[88]
+    [{HR = [0, 53]}, {HR = [0, 58]}, {HR = [1, 0]}], # PHRT[53], PHRT[58], PHRB[0]
+]
+tag_bits = [
+    [{PC = 7}, {HR = [0, 0]}, {HR = [0, 12]}, {HR = [0, 24]}, {HR = [0, 36]}, {HR = [0, 48]}, {HR = [0, 60]}, {HR = [0, 72]}, {HR = [0, 84]}, {HR = [0, 96]}, {HR = [1, 8]}, {HR = [1, 21]}], # PHRT[0], PHRT[12], PHRT[24], PHRT[36], PHRT[48], PHRT[60], PHRT[72], PHRT[84], PHRT[96], PHRB[8], PHRB[21]
+    [{PC = 8}, {HR = [0, 1]}, {HR = [0, 13]}, {HR = [0, 25]}, {HR = [0, 37]}, {HR = [0, 49]}, {HR = [0, 61]}, {HR = [0, 73]}, {HR = [0, 85]}, {HR = [0, 97]}, {HR = [1, 9]}, {HR = [1, 22]}], # PHRT[1], PHRT[13], PHRT[25], PHRT[37], PHRT[49], PHRT[61], PHRT[73], PHRT[85], PHRT[97], PHRB[9], PHRB[22]
+    [{PC = 9}, {HR = [0, 2]}, {HR = [0, 14]}, {HR = [0, 26]}, {HR = [0, 38]}, {HR = [0, 50]}, {HR = [0, 62]}, {HR = [0, 74]}, {HR = [0, 86]}, {HR = [0, 98]}, {HR = [1, 10]}, {HR = [1, 23]}, {HR = [1, 24]}], # PHRT[2], PHRT[14], PHRT[26], PHRT[38], PHRT[50], PHRT[62], PHRT[74], PHRT[86], PHRT[97], PHRB[10], PHRB[23], PHRB[24]
+    [{PC = 10}, {HR = [0, 3]}, {HR = [0, 15]}, {HR = [0, 27]}, {HR = [0, 39]}, {HR = [0, 51]}, {HR = [0, 63]}, {HR = [0, 75]}, {HR = [0, 87]}, {HR = [0, 99]}, {HR = [1, 11]}, {HR = [1, 12]}, {HR = [1, 25]}], # PHRT[3], PHRT[15], PHRT[27], PHRT[39], PHRT[51], PHRT[63], PHRT[75], PHRT[87], PHRT[98], PHRB[11], PHRB[12], PHRB[25]
+    [{PC = 11}, {HR = [0, 4]}, {HR = [0, 16]}, {HR = [0, 28]}, {HR = [0, 40]}, {HR = [0, 52]}, {HR = [0, 64]}, {HR = [0, 76]}, {HR = [0, 88]}, {HR = [1, 0]}, {HR = [1, 13]}, {HR = [1, 26]}], # PHRT[4], PHRT[16], PHRT[28], PHRT[40], PHRT[52], PHRT[64], PHRT[76], PHRT[88], PHRT[99], PHRB[0], PHRB[13], PHRB[26]
+    [{PC = 12}, {HR = [0, 5]}, {HR = [0, 17]}, {HR = [0, 29]}, {HR = [0, 41]}, {HR = [0, 53]}, {HR = [0, 65]}, {HR = [0, 77]}, {HR = [0, 89]}, {HR = [1, 1]}, {HR = [1, 14]}, {HR = [1, 27]}], # PHRT[5], PHRT[17], PHRT[29], PHRT[41], PHRT[53], PHRT[65], PHRT[77], PHRT[89], PHRB[1], PHRB[14], PHRB[27]
+    [{PC = 13}, {HR = [0, 6]}, {HR = [0, 18]}, {HR = [0, 30]}, {HR = [0, 42]}, {HR = [0, 54]}, {HR = [0, 66]}, {HR = [0, 78]}, {HR = [0, 90]}, {HR = [1, 2]}, {HR = [1, 15]}], # PHRT[6], PHRT[18], PHRT[30], PHRT[42], PHRT[54], PHRT[66], PHRT[78], PHRT[90], PHRB[2], PHRB[15]
+    [{PC = 14}, {HR = [0, 7]}, {HR = [0, 19]}, {HR = [0, 31]}, {HR = [0, 43]}, {HR = [0, 55]}, {HR = [0, 67]}, {HR = [0, 79]}, {HR = [0, 91]}, {HR = [1, 3]}, {HR = [1, 16]}], # PHRT[7], PHRT[19], PHRT[31], PHRT[43], PHRT[55], PHRT[67], PHRT[79], PHRT[91], PHRB[3], PHRB[16]
+    [{PC = 15}, {HR = [0, 8]}, {HR = [0, 20]}, {HR = [0, 32]}, {HR = [0, 44]}, {HR = [0, 56]}, {HR = [0, 68]}, {HR = [0, 80]}, {HR = [0, 92]}, {HR = [1, 4]}, {HR = [1, 17]}], # PHRT[8], PHRT[20], PHRT[32], PHRT[44], PHRT[56], PHRT[68], PHRT[80], PHRT[92], PHRB[4], PHRB[17]
+    [{PC = 16}, {HR = [0, 9]}, {HR = [0, 21]}, {HR = [0, 33]}, {HR = [0, 45]}, {HR = [0, 57]}, {HR = [0, 69]}, {HR = [0, 81]}, {HR = [0, 93]}, {HR = [1, 5]}, {HR = [1, 18]}], # PHRT[9], PHRT[21], PHRT[33], PHRT[45], PHRT[57], PHRT[69], PHRT[81], PHRT[93], PHRB[5], PHRB[18]
+    [{PC = 17}, {HR = [0, 10]}, {HR = [0, 22]}, {HR = [0, 34]}, {HR = [0, 46]}, {HR = [0, 58]}, {HR = [0, 70]}, {HR = [0, 82]}, {HR = [0, 94]}, {HR = [1, 6]}, {HR = [1, 19]}], # PHRT[10], PHRT[22], PHRT[34], PHRT[46], PHRT[58], PHRT[70], PHRT[82], PHRT[94], PHRB[6], PHRB[19]
+    [{PC = 18}, {HR = [0, 11]}, {HR = [0, 23]}, {HR = [0, 35]}, {HR = [0, 47]}, {HR = [0, 59]}, {HR = [0, 71]}, {HR = [0, 83]}, {HR = [0, 95]}, {HR = [1, 7]}, {HR = [1, 20]}], # PHRT[11], PHRT[23], PHRT[35], PHRT[47], PHRT[59], PHRT[71], PHRT[83], PHRT[95], PHRB[7], PHRB[20]
+    [{PC = 5}],
+    [{PC = 4}],
+    [{PC = 3}],
+    [{PC = 2}]
+]
+ways = 4
+counter_width = 2
