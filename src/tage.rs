@@ -74,7 +74,8 @@ impl TageHistoryRegister {
         match &self.config {
             TageHistoryRegisterConfig::PHR(tage_phrconfig) => {
                 // step 1: shift
-                self.bits.shift_left(tage_phrconfig.shift);
+                // the bitvec is lsb first
+                self.bits.shift_right(tage_phrconfig.shift);
 
                 // step 2: xor footprint
                 for (bit, formula) in tage_phrconfig.footprint.iter().rev().enumerate() {
