@@ -1,4 +1,4 @@
-use crate::{BranchType, tage};
+use crate::BranchType;
 use bitvec::vec::BitVec;
 use serde::{Deserialize, Serialize};
 use std::{ops::Deref, path::Path};
@@ -100,14 +100,78 @@ impl TageHistoryRegister {
 }
 
 #[derive(Clone, Debug)]
+pub struct TageTableEntry {
+    tag: u16,
+    counter: u8,
+    useful: u8,
+}
+
+#[derive(Clone, Debug)]
+pub struct TageTable {
+    /// (2 ** index_bits.len()) * ways
+    entries: Vec<TageTableEntry>,
+    config: TageTableConfig,
+}
+
+impl TageTable {
+    pub fn compute(
+        &self,
+        pc: u64,
+        history_registers: &[TageHistoryRegister],
+        bits: &Vec<Vec<TageXorConfig>>,
+    ) -> usize {
+        let mut index = 0;
+        for (bit, formula) in bits.iter().enumerate() {
+            let mut computed = 0;
+            for entry in formula {
+                let b = match entry {
+                    TageXorConfig::HR(i, j) => {
+                        *history_registers[*i].bits.get(*j).unwrap().deref() as u64
+                    }
+                    TageXorConfig::PC(i) => (pc >> *i) & 1,
+                };
+                computed ^= b;
+            }
+            index += computed << bit;
+        }
+        index as usize
+    }
+
+    pub fn get_index(&self, pc: u64, history_registers: &[TageHistoryRegister]) -> usize {
+        self.compute(pc, history_registers, &self.config.index_bits)
+    }
+
+    pub fn get_tag(&self, pc: u64, history_registers: &[TageHistoryRegister]) -> usize {
+        self.compute(pc, history_registers, &self.config.tag_bits)
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct Tage {
     config: TageConfig,
+    tables: Vec<TageTable>,
     history_registers: Vec<TageHistoryRegister>,
 }
 
 impl Tage {
     pub fn new<P: AsRef<Path>>(path: P) -> anyhow::Result<Tage> {
         let config: TageConfig = toml::from_str(&std::fs::read_to_string(path)?)?;
+
+        let mut tables = vec![];
+        for table_config in &config.tables {
+            tables.push(TageTable {
+                entries: vec![
+                    TageTableEntry {
+                        tag: 0,
+                        counter: 0,
+                        useful: 0
+                    };
+                    (1 << table_config.index_bits.len()) * table_config.ways
+                ],
+                config: table_config.clone(),
+            });
+        }
+
         let mut history_registers = vec![];
         for hr_config in &config.history_registers {
             let mut bits = BitVec::new();
@@ -121,8 +185,10 @@ impl Tage {
                 config: hr_config.clone(),
             });
         }
+
         Ok(Tage {
             config,
+            tables,
             history_registers,
         })
     }
@@ -136,7 +202,7 @@ impl Tage {
         pc: u64,
         branch_type: BranchType,
         resolve_direction: bool,
-        prediction_direction: bool,
+        predict_direction: bool,
         branch_target: u64,
     ) {
         // TODO: update tage
