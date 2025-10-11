@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 addr2line = "0.24.2"
 anyhow = "1.0.97"
+bitvec = "1.0.1"
 capstone = { version = "0.13.0", features = ["full"] }
 chrono = "0.4.40"
 clap = { version = "4.5.35", features = ["derive"] }

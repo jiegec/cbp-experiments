@@ -1,6 +1,7 @@
-use crate::BranchType;
+use crate::{BranchType, tage};
+use bitvec::vec::BitVec;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::{ops::Deref, path::Path};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum TagePHRXorConfig {
@@ -63,14 +64,67 @@ pub struct TageConfig {
 }
 
 #[derive(Clone, Debug)]
+pub struct TageHistoryRegister {
+    bits: BitVec,
+    config: TageHistoryRegisterConfig,
+}
+
+impl TageHistoryRegister {
+    pub fn update(&mut self, branch_addr: u64, target_addr: u64) {
+        match &self.config {
+            TageHistoryRegisterConfig::PHR(tage_phrconfig) => {
+                // step 1: shift
+                self.bits.shift_left(tage_phrconfig.shift);
+
+                // step 2: xor footprint
+                for (bit, formula) in tage_phrconfig.footprint.iter().rev().enumerate() {
+                    let mut computed = 0;
+                    for entry in formula {
+                        let b = match entry {
+                            TagePHRXorConfig::B(i) => (branch_addr >> *i) & 1,
+                            TagePHRXorConfig::T(i) => (target_addr >> *i) & 1,
+                        };
+                        computed ^= b;
+                    }
+                    let new_value = self.bits.get(bit).unwrap().deref()
+                        ^ match computed {
+                            0 => false,
+                            1 => true,
+                            _ => unreachable!(),
+                        };
+                    self.bits.set(bit, new_value);
+                }
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct Tage {
     config: TageConfig,
+    history_registers: Vec<TageHistoryRegister>,
 }
 
 impl Tage {
     pub fn new<P: AsRef<Path>>(path: P) -> anyhow::Result<Tage> {
         let config: TageConfig = toml::from_str(&std::fs::read_to_string(path)?)?;
-        Ok(Tage { config })
+        let mut history_registers = vec![];
+        for hr_config in &config.history_registers {
+            let mut bits = BitVec::new();
+            match hr_config {
+                TageHistoryRegisterConfig::PHR(tage_phrconfig) => {
+                    bits.resize(tage_phrconfig.length, false);
+                }
+            }
+            history_registers.push(TageHistoryRegister {
+                bits,
+                config: hr_config.clone(),
+            });
+        }
+        Ok(Tage {
+            config,
+            history_registers,
+        })
     }
 
     pub fn predict(&mut self, pc: u64, groundtruth: bool) -> bool {
@@ -85,6 +139,11 @@ impl Tage {
         prediction_direction: bool,
         branch_target: u64,
     ) {
+        // TODO: update tage
+
+        for hr in &mut self.history_registers {
+            hr.update(pc, branch_target);
+        }
     }
 
     pub fn update_others(
@@ -94,6 +153,9 @@ impl Tage {
         branch_taken: bool,
         branch_target: u64,
     ) {
+        for hr in &mut self.history_registers {
+            hr.update(pc, branch_target);
+        }
     }
 }
 
