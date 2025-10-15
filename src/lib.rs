@@ -11,6 +11,7 @@ pub use path::*;
 pub use simpoint::*;
 pub use simulate::*;
 pub use tage::*;
+use titlecase::Titlecase;
 pub use trace::*;
 pub use utils::*;
 
@@ -40,13 +41,21 @@ pub fn list_conditional_branch_predictors() -> Vec<String> {
         predictors.push(predictor.to_string());
     }
     // Rust predictors
-    predictors.push("CustomTage-Firestorm".to_string());
+    for entry in std::fs::read_dir("configs").unwrap() {
+        let entry = entry.unwrap();
+        let path = entry.path();
+        predictors.push(format!(
+            "CustomTage-{}",
+            path.file_stem().unwrap().to_str().unwrap().titlecase()
+        ));
+    }
     predictors
 }
 
 pub fn new_conditional_branch_predictor(name: &str) -> Box<dyn ConditionalBranchPredictor> {
     if name.starts_with("CustomTage-") {
-        Box::new(Tage::new("configs/firestorm.toml").unwrap())
+        let name = name.strip_prefix("CustomTage-").unwrap();
+        Box::new(Tage::new(format!("configs/{}.toml", name.to_ascii_lowercase())).unwrap())
     } else {
         Box::new(CxxConditionalBranchPredictor {
             inner: ffi::new_conditional_branch_predictor(name),

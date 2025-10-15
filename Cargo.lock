@@ -215,6 +215,7 @@ dependencies = [
  "size",
  "skim",
  "tempfile",
+ "titlecase",
  "toml",
  "zstd",
 ]
@@ -1781,6 +1782,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "31d42176308937165701f50638db1c31586f183f1aab416268216577aec7306b"
 dependencies = [
  "chrono",
+]
+
+[[package]]
+name = "titlecase"
+version = "3.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eb567088a91d59b492520c8149e2be5ce10d5deb2d9a383f3378df3259679d40"
+dependencies = [
+ "regex",
 ]
 
 [[package]]
