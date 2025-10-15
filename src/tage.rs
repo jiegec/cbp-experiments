@@ -151,7 +151,7 @@ pub struct TageTable {
 impl TageTable {
     pub fn find_match(&self, pc: u64, history_registers: &[TageHistoryRegister]) -> Option<usize> {
         let index = self.get_index(pc, history_registers);
-        let tag = self.get_index(pc, history_registers);
+        let tag = self.get_tag(pc, history_registers);
         for i in 0..self.config.ways {
             // find match
             let j = index * self.config.ways + i;
@@ -338,6 +338,7 @@ impl ConditionalBranchPredictor for Tage {
                 let pred_entry = &self.tables[pred.table].entries[pred.entry_index];
                 let pred_res =
                     pred_entry.get_prediction(self.config.tables[pred.table].counter_width);
+                assert!(pred_res == predict_direction);
                 if let Some(altpred) = m.altpred {
                     let altpred_entry = &self.tables[altpred.table].entries[altpred.entry_index];
                     let altpred_res = altpred_entry
@@ -364,6 +365,16 @@ impl ConditionalBranchPredictor for Tage {
                     } else {
                         // decrement counter
                         self.tables[pred.table].entries[pred.entry_index].decrement_counter();
+                    }
+                } else {
+                    // incorrect prediction
+                    if predict_direction {
+                        // decrement counter
+                        self.tables[pred.table].entries[pred.entry_index].decrement_counter();
+                    } else {
+                        // increment counter
+                        self.tables[pred.table].entries[pred.entry_index]
+                            .increment_counter(self.config.tables[pred.table].counter_width);
                     }
                 }
             }
@@ -394,10 +405,13 @@ impl ConditionalBranchPredictor for Tage {
         }
 
         // update history registers
-        for hr in &mut self.history_registers {
-            hr.update(pc, branch_target);
+        if resolve_direction {
+            for hr in &mut self.history_registers {
+                hr.update(pc, branch_target);
+            }
         }
     }
+
     fn update_others(
         &mut self,
         pc: u64,
@@ -417,8 +431,8 @@ impl ConditionalBranchPredictor for Tage {
 #[cfg(test)]
 mod tests {
     use crate::{
-        Tage, TageConfig, TageHistoryRegisterConfig, TagePHRConfig, TagePHRXorConfig,
-        TageTableConfig, TageXorConfig,
+        BranchType, ConditionalBranchPredictor, Tage, TageConfig, TageHistoryRegisterConfig,
+        TagePHRConfig, TagePHRXorConfig, TageTableConfig, TageXorConfig,
     };
 
     #[test]
@@ -544,5 +558,35 @@ mod tests {
             })
             .unwrap()
         );
+    }
+
+    #[test]
+    fn test_simple() {
+        let mut tage = Tage::new("configs/firestorm.toml").unwrap();
+        let mut correct = 0;
+        let count = 1000;
+        // branch 1: branch from 0x4 to 0x0 if i % 3 == 0
+        // branch 2: branch from 0x8 to 0x0
+        for i in 0..count {
+            // branch 1
+            let resolve_direction = if i % 3 == 0 { true } else { false };
+            let predict_direction = tage.predict(0x4, resolve_direction);
+            if resolve_direction == predict_direction {
+                correct += 1;
+            }
+            tage.update(
+                0x4,
+                BranchType::ConditionalDirectJump,
+                resolve_direction,
+                predict_direction,
+                0x0,
+            );
+
+            // branch 2
+            if !resolve_direction {
+                tage.update_others(0x8, BranchType::DirectJump, true, 0x0);
+            }
+        }
+        assert!(correct >= 990, "{}/{}", correct, count);
     }
 }
