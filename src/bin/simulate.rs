@@ -67,7 +67,6 @@ fn main() -> anyhow::Result<()> {
 
     let mut conditional_branch_predictor =
         new_conditional_branch_predictor(&args.conditional_branch_predictor);
-    let mut conditional_branch_predictor_mut = conditional_branch_predictor.as_mut().unwrap();
 
     let mut indirect_branch_predictor =
         new_indirect_branch_predictor(&args.indirect_branch_predictor);
@@ -132,34 +131,29 @@ fn main() -> anyhow::Result<()> {
             // predict or train conditional branch predictor
             if branch.branch_type == BranchType::ConditionalDirectJump {
                 // requires prediction
-                let predict = conditional_branch_predictor_mut
-                    .as_mut()
-                    .get_conditional_branch_prediction(branch.inst_addr, entry.get_taken());
+                let predict =
+                    conditional_branch_predictor.predict(branch.inst_addr, entry.get_taken());
                 if instructions >= args.skip + args.warmup {
                     branch_infos[entry.get_br_index()].mispred_count +=
                         (predict != entry.get_taken()) as u64;
                 }
 
                 // update
-                conditional_branch_predictor_mut
-                    .as_mut()
-                    .update_conditional_branch_predictor(
-                        branch.inst_addr,
-                        branch.branch_type,
-                        entry.get_taken(),
-                        predict,
-                        branch.targ_addr,
-                    );
+                conditional_branch_predictor.update(
+                    branch.inst_addr,
+                    branch.branch_type,
+                    entry.get_taken(),
+                    predict,
+                    branch.targ_addr,
+                );
             } else {
                 // update
-                conditional_branch_predictor_mut
-                    .as_mut()
-                    .update_conditional_branch_predictor_other_inst(
-                        branch.inst_addr,
-                        branch.branch_type,
-                        true,
-                        branch.targ_addr,
-                    );
+                conditional_branch_predictor.update_others(
+                    branch.inst_addr,
+                    branch.branch_type,
+                    true,
+                    branch.targ_addr,
+                );
             }
 
             // predict or train indirect branch predictor

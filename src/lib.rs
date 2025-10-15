@@ -5,6 +5,7 @@ mod tage;
 mod trace;
 mod utils;
 
+use cxx::UniquePtr;
 pub use ffi::*;
 pub use path::*;
 pub use simpoint::*;
@@ -12,6 +13,97 @@ pub use simulate::*;
 pub use tage::*;
 pub use trace::*;
 pub use utils::*;
+
+pub trait ConditionalBranchPredictor {
+    fn predict(&mut self, pc: u64, groundtruth: bool) -> bool;
+    fn update(
+        &mut self,
+        pc: u64,
+        branch_type: BranchType,
+        resolve_direction: bool,
+        predict_direction: bool,
+        branch_target: u64,
+    );
+    fn update_others(
+        &mut self,
+        pc: u64,
+        branch_type: BranchType,
+        branch_taken: bool,
+        branch_target: u64,
+    );
+}
+
+pub fn list_conditional_branch_predictors() -> Vec<String> {
+    let mut predictors = vec![];
+    // C++ predictors
+    for predictor in ffi::list_conditional_branch_predictors().iter() {
+        predictors.push(predictor.to_string());
+    }
+    // Rust predictors
+    predictors.push("CustomTage-Firestorm".to_string());
+    predictors
+}
+
+pub fn new_conditional_branch_predictor(name: &str) -> Box<dyn ConditionalBranchPredictor> {
+    if name.starts_with("CustomTage-") {
+        Box::new(Tage::new("configs/firestorm.toml").unwrap())
+    } else {
+        Box::new(CxxConditionalBranchPredictor {
+            inner: ffi::new_conditional_branch_predictor(name),
+        })
+    }
+}
+
+struct CxxConditionalBranchPredictor {
+    inner: UniquePtr<ffi::ConditionalBranchPredictor>,
+}
+
+impl ConditionalBranchPredictor for CxxConditionalBranchPredictor {
+    fn predict(&mut self, pc: u64, groundtruth: bool) -> bool {
+        self.inner
+            .as_mut()
+            .unwrap()
+            .get_conditional_branch_prediction(pc, groundtruth)
+    }
+
+    fn update(
+        &mut self,
+        pc: u64,
+        branch_type: BranchType,
+        resolve_direction: bool,
+        predict_direction: bool,
+        branch_target: u64,
+    ) {
+        self.inner
+            .as_mut()
+            .unwrap()
+            .update_conditional_branch_predictor(
+                pc,
+                branch_type,
+                resolve_direction,
+                predict_direction,
+                branch_target,
+            )
+    }
+
+    fn update_others(
+        &mut self,
+        pc: u64,
+        branch_type: BranchType,
+        branch_taken: bool,
+        branch_target: u64,
+    ) {
+        self.inner
+            .as_mut()
+            .unwrap()
+            .update_conditional_branch_predictor_other_inst(
+                pc,
+                branch_type,
+                branch_taken,
+                branch_target,
+            )
+    }
+}
 
 #[cxx::bridge]
 mod ffi {

@@ -1,4 +1,4 @@
-use crate::BranchType;
+use crate::{BranchType, ConditionalBranchPredictor};
 use bitvec::vec::BitVec;
 use serde::{Deserialize, Serialize};
 use std::{ops::Deref, path::Path};
@@ -308,8 +308,10 @@ impl Tage {
         }
         res
     }
+}
 
-    pub fn predict(&mut self, pc: u64, _groundtruth: bool) -> bool {
+impl ConditionalBranchPredictor for Tage {
+    fn predict(&mut self, pc: u64, _groundtruth: bool) -> bool {
         let m = self.find_match(pc);
         if let Some(pred) = m.pred {
             let entry = &self.tables[pred.table].entries[pred.entry_index];
@@ -319,7 +321,7 @@ impl Tage {
         true
     }
 
-    pub fn update(
+    fn update(
         &mut self,
         pc: u64,
         branch_type: BranchType,
@@ -396,8 +398,7 @@ impl Tage {
             hr.update(pc, branch_target);
         }
     }
-
-    pub fn update_others(
+    fn update_others(
         &mut self,
         pc: u64,
         _branch_type: BranchType,

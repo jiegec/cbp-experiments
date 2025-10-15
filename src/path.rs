@@ -126,10 +126,7 @@ pub fn ask_for_simulate_dir<P: AsRef<Path>>(config_name: P) -> anyhow::Result<St
 }
 
 pub fn ask_for_conditional_branch_predictor() -> anyhow::Result<String> {
-    let mut predictors = vec![];
-    for predictor in list_conditional_branch_predictors().iter() {
-        predictors.push(predictor.to_string());
-    }
+    let predictors = list_conditional_branch_predictors();
 
     get_selection(predictors, "Choose conditional branch predictor: ")
 }
