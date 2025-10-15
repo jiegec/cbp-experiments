@@ -107,6 +107,40 @@ pub struct TageTableEntry {
     useful: u8,
 }
 
+impl TageTableEntry {
+    pub fn get_prediction(&self, counter_width: usize) -> bool {
+        let taken_limit = 1 << (counter_width - 1);
+        self.counter >= taken_limit
+    }
+
+    pub fn increment_counter(&mut self, counter_width: usize) {
+        let limit = (1 << counter_width) - 1;
+        self.counter = if self.counter == limit {
+            limit
+        } else {
+            self.counter + 1
+        };
+    }
+
+    pub fn decrement_counter(&mut self) {
+        self.counter = if self.counter == 0 {
+            0
+        } else {
+            self.counter - 1
+        };
+    }
+
+    pub fn increment_useful(&mut self) {
+        // 2-bit
+        self.useful = if self.useful == 3 { 3 } else { self.useful + 1 };
+    }
+
+    pub fn decrement_useful(&mut self) {
+        // 2-bit
+        self.useful = if self.useful == 0 { 0 } else { self.useful - 1 };
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct TageTable {
     /// (2 ** index_bits.len()) * ways
@@ -115,11 +149,25 @@ pub struct TageTable {
 }
 
 impl TageTable {
-    pub fn compute(
+    pub fn find_match(&self, pc: u64, history_registers: &[TageHistoryRegister]) -> Option<usize> {
+        let index = self.get_index(pc, history_registers);
+        let tag = self.get_index(pc, history_registers);
+        for i in 0..self.config.ways {
+            // find match
+            let j = index * self.config.ways + i;
+            if self.entries[j].tag as usize == tag {
+                // found
+                return Some(j);
+            }
+        }
+        None
+    }
+
+    fn compute(
         &self,
         pc: u64,
         history_registers: &[TageHistoryRegister],
-        bits: &Vec<Vec<TageXorConfig>>,
+        bits: &[Vec<TageXorConfig>],
     ) -> usize {
         let mut index = 0;
         for (bit, formula) in bits.iter().enumerate() {
@@ -145,6 +193,56 @@ impl TageTable {
     pub fn get_tag(&self, pc: u64, history_registers: &[TageHistoryRegister]) -> usize {
         self.compute(pc, history_registers, &self.config.tag_bits)
     }
+
+    pub fn allocate(
+        &mut self,
+        pc: u64,
+        history_registers: &[TageHistoryRegister],
+        direction: bool,
+        counter_width: usize,
+    ) -> bool {
+        let index = self.get_index(pc, history_registers);
+        for i in 0..self.config.ways {
+            // find zero useful
+            let j = index * self.config.ways + i;
+            if self.entries[j].useful == 0 {
+                // allocate
+                let tag = self.get_index(pc, history_registers);
+                self.entries[j].tag = tag as u16;
+                self.entries[j].useful = 0;
+                if direction {
+                    // weak taken
+                    self.entries[j].counter = 1 << (counter_width - 1);
+                } else {
+                    // weak not taken
+                    self.entries[j].counter = (1 << (counter_width - 1)) - 1;
+                }
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn decrement_useful(&mut self, pc: u64, history_registers: &[TageHistoryRegister]) -> bool {
+        let index = self.get_index(pc, history_registers);
+        for i in 0..self.config.ways {
+            let j = index * self.config.ways + i;
+            self.entries[j].decrement_useful();
+        }
+        false
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct TageMatchInner {
+    table: usize,
+    entry_index: usize,
+}
+
+#[derive(Clone, Debug)]
+pub struct TageMatch {
+    pred: Option<TageMatchInner>,
+    altpred: Option<TageMatchInner>,
 }
 
 #[derive(Clone, Debug)]
@@ -194,7 +292,30 @@ impl Tage {
         })
     }
 
-    pub fn predict(&mut self, pc: u64, groundtruth: bool) -> bool {
+    fn find_match(&self, pc: u64) -> TageMatch {
+        let mut res = TageMatch {
+            pred: None,
+            altpred: None,
+        };
+        for i in 0..self.config.tables.len() {
+            if let Some(entry_index) = self.tables[i].find_match(pc, &self.history_registers) {
+                res.altpred = res.pred;
+                res.pred = Some(TageMatchInner {
+                    table: i,
+                    entry_index,
+                });
+            }
+        }
+        res
+    }
+
+    pub fn predict(&mut self, pc: u64, _groundtruth: bool) -> bool {
+        let m = self.find_match(pc);
+        if let Some(pred) = m.pred {
+            let entry = &self.tables[pred.table].entries[pred.entry_index];
+            return entry.get_prediction(self.config.tables[pred.table].counter_width);
+        }
+        // no match
         true
     }
 
@@ -206,8 +327,71 @@ impl Tage {
         predict_direction: bool,
         branch_target: u64,
     ) {
-        // TODO: update tage
+        // update tage
+        if let BranchType::ConditionalDirectJump = branch_type {
+            let m = self.find_match(pc);
+            let mut min_table = 0;
+            if let Some(pred) = m.pred {
+                min_table = pred.table + 1;
+                let pred_entry = &self.tables[pred.table].entries[pred.entry_index];
+                let pred_res =
+                    pred_entry.get_prediction(self.config.tables[pred.table].counter_width);
+                if let Some(altpred) = m.altpred {
+                    let altpred_entry = &self.tables[altpred.table].entries[altpred.entry_index];
+                    let altpred_res = altpred_entry
+                        .get_prediction(self.config.tables[altpred.table].counter_width);
 
+                    if pred_res != altpred_res {
+                        // update useful counter
+                        if pred_res == resolve_direction {
+                            // correct, increment useful
+                            self.tables[pred.table].entries[pred.entry_index].increment_useful();
+                        } else {
+                            // incorrect, decrement useful
+                            self.tables[pred.table].entries[pred.entry_index].decrement_useful();
+                        }
+                    }
+                }
+
+                if resolve_direction == predict_direction {
+                    // correct prediction
+                    if predict_direction {
+                        // increment counter
+                        self.tables[pred.table].entries[pred.entry_index]
+                            .increment_counter(self.config.tables[pred.table].counter_width);
+                    } else {
+                        // decrement counter
+                        self.tables[pred.table].entries[pred.entry_index].decrement_counter();
+                    }
+                }
+            }
+
+            // wrong prediction
+            if resolve_direction != predict_direction {
+                // allocate in a table with longer history
+                let mut allocated = false;
+                for i in min_table..self.config.tables.len() {
+                    if self.tables[i].allocate(
+                        pc,
+                        &self.history_registers,
+                        resolve_direction,
+                        self.config.tables[i].counter_width,
+                    ) {
+                        allocated = true;
+                        break;
+                    }
+                }
+
+                // allocation failed: decrement useful counters
+                if !allocated {
+                    for i in min_table..self.config.tables.len() {
+                        self.tables[i].decrement_useful(pc, &self.history_registers);
+                    }
+                }
+            }
+        }
+
+        // update history registers
         for hr in &mut self.history_registers {
             hr.update(pc, branch_target);
         }
@@ -216,12 +400,15 @@ impl Tage {
     pub fn update_others(
         &mut self,
         pc: u64,
-        branch_type: BranchType,
+        _branch_type: BranchType,
         branch_taken: bool,
         branch_target: u64,
     ) {
-        for hr in &mut self.history_registers {
-            hr.update(pc, branch_target);
+        // update history register
+        if branch_taken {
+            for hr in &mut self.history_registers {
+                hr.update(pc, branch_target);
+            }
         }
     }
 }

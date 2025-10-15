@@ -72,7 +72,7 @@ fn main() -> anyhow::Result<()> {
         for info in items.iter().rev().take(10) {
             let addr = info.branch_inst_addr;
             let mut addr_fmt = format!("unknown:0x{:x}", addr);
-            let mut line_fmt = format!("unknown");
+            let mut line_fmt = "unknown".to_string();
             for image in &simulate_result.images {
                 if addr >= image.start && addr < image.start + image.len {
                     addr_fmt = format!(
