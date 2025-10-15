@@ -207,7 +207,7 @@ impl TageTable {
             let j = index * self.config.ways + i;
             if self.entries[j].useful == 0 {
                 // allocate
-                let tag = self.get_index(pc, history_registers);
+                let tag = self.get_tag(pc, history_registers);
                 self.entries[j].tag = tag as u16;
                 self.entries[j].useful = 0;
                 if direction {
