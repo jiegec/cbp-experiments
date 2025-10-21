@@ -6,12 +6,13 @@ mod trace;
 mod utils;
 
 use cxx::UniquePtr;
+use titlecase::Titlecase;
+
 pub use ffi::*;
 pub use path::*;
 pub use simpoint::*;
 pub use simulate::*;
 pub use tage::*;
-use titlecase::Titlecase;
 pub use trace::*;
 pub use utils::*;
 

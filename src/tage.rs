@@ -56,9 +56,21 @@ pub struct TageTableConfig {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct TageBaseTableConfig {
+    /// Computation formula of index bits, from MSB to LSB
+    /// each bit of index is xored from one or more bits
+    index_bits: Vec<Vec<TageXorConfig>>,
+
+    /// Width of counter in each entry
+    counter_width: usize,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TageConfig {
     /// One or more more history registers
     history_registers: Vec<TageHistoryRegisterConfig>,
+    /// Base table
+    base_table: TageBaseTableConfig,
     /// One or more pattern history tables
     tables: Vec<TageTableConfig>,
 }
@@ -164,7 +176,6 @@ impl TageTable {
     }
 
     fn compute(
-        &self,
         pc: u64,
         history_registers: &[TageHistoryRegister],
         bits: &[Vec<TageXorConfig>],
@@ -187,11 +198,11 @@ impl TageTable {
     }
 
     pub fn get_index(&self, pc: u64, history_registers: &[TageHistoryRegister]) -> usize {
-        self.compute(pc, history_registers, &self.config.index_bits)
+        Self::compute(pc, history_registers, &self.config.index_bits)
     }
 
     pub fn get_tag(&self, pc: u64, history_registers: &[TageHistoryRegister]) -> usize {
-        self.compute(pc, history_registers, &self.config.tag_bits)
+        Self::compute(pc, history_registers, &self.config.tag_bits)
     }
 
     pub fn allocate(
@@ -234,9 +245,62 @@ impl TageTable {
 }
 
 #[derive(Clone, Debug)]
-pub struct TageMatchInner {
+pub struct TageBaseTableEntry {
+    counter: u8,
+}
+
+impl TageBaseTableEntry {
+    pub fn get_prediction(&self, counter_width: usize) -> bool {
+        let taken_limit = 1 << (counter_width - 1);
+        self.counter >= taken_limit
+    }
+
+    pub fn increment_counter(&mut self, counter_width: usize) {
+        let limit = (1 << counter_width) - 1;
+        self.counter = if self.counter == limit {
+            limit
+        } else {
+            self.counter + 1
+        };
+    }
+
+    pub fn decrement_counter(&mut self) {
+        self.counter = if self.counter == 0 {
+            0
+        } else {
+            self.counter - 1
+        };
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct TageBaseTable {
+    /// 2 ** index_bits.len()
+    entries: Vec<TageBaseTableEntry>,
+    config: TageBaseTableConfig,
+}
+
+impl TageBaseTable {
+    pub fn get_index(&self, pc: u64, history_registers: &[TageHistoryRegister]) -> usize {
+        TageTable::compute(pc, history_registers, &self.config.index_bits)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct TageMatchFromBase {
+    entry_index: usize,
+}
+
+#[derive(Clone, Debug)]
+pub struct TageMatchFromNonBase {
     table: usize,
     entry_index: usize,
+}
+
+#[derive(Clone, Debug)]
+pub enum TageMatchInner {
+    Base(TageMatchFromBase),
+    NonBase(TageMatchFromNonBase),
 }
 
 #[derive(Clone, Debug)]
@@ -248,6 +312,7 @@ pub struct TageMatch {
 #[derive(Clone, Debug)]
 pub struct Tage {
     config: TageConfig,
+    base_table: TageBaseTable,
     tables: Vec<TageTable>,
     history_registers: Vec<TageHistoryRegister>,
 }
@@ -271,6 +336,14 @@ impl Tage {
             });
         }
 
+        let base_table = TageBaseTable {
+            entries: vec![
+                TageBaseTableEntry { counter: 0 };
+                1 << config.base_table.index_bits.len()
+            ],
+            config: config.base_table.clone(),
+        };
+
         let mut history_registers = vec![];
         for hr_config in &config.history_registers {
             let mut bits = BitVec::new();
@@ -288,6 +361,7 @@ impl Tage {
         Ok(Tage {
             config,
             tables,
+            base_table,
             history_registers,
         })
     }
@@ -297,13 +371,18 @@ impl Tage {
             pred: None,
             altpred: None,
         };
+
+        // generate prediction from base table
+        let entry_index = self.base_table.get_index(pc, &self.history_registers);
+        res.pred = Some(TageMatchInner::Base(TageMatchFromBase { entry_index }));
+
         for i in 0..self.config.tables.len() {
             if let Some(entry_index) = self.tables[i].find_match(pc, &self.history_registers) {
                 res.altpred = res.pred;
-                res.pred = Some(TageMatchInner {
+                res.pred = Some(TageMatchInner::NonBase(TageMatchFromNonBase {
                     table: i,
                     entry_index,
-                });
+                }));
             }
         }
         res
@@ -313,12 +392,16 @@ impl Tage {
 impl ConditionalBranchPredictor for Tage {
     fn predict(&mut self, pc: u64, _groundtruth: bool) -> bool {
         let m = self.find_match(pc);
-        if let Some(pred) = m.pred {
-            let entry = &self.tables[pred.table].entries[pred.entry_index];
-            return entry.get_prediction(self.config.tables[pred.table].counter_width);
+        match m.pred.unwrap() {
+            TageMatchInner::Base(pred) => {
+                let entry = &self.base_table.entries[pred.entry_index];
+                entry.get_prediction(self.config.base_table.counter_width)
+            }
+            TageMatchInner::NonBase(pred) => {
+                let entry = &self.tables[pred.table].entries[pred.entry_index];
+                entry.get_prediction(self.config.tables[pred.table].counter_width)
+            }
         }
-        // no match
-        true
     }
 
     fn update(
@@ -333,16 +416,25 @@ impl ConditionalBranchPredictor for Tage {
         if let BranchType::ConditionalDirectJump = branch_type {
             let m = self.find_match(pc);
             let mut min_table = 0;
-            if let Some(pred) = m.pred {
+            if let TageMatchInner::NonBase(pred) = m.pred.unwrap() {
                 min_table = pred.table + 1;
                 let pred_entry = &self.tables[pred.table].entries[pred.entry_index];
                 let pred_res =
                     pred_entry.get_prediction(self.config.tables[pred.table].counter_width);
                 assert!(pred_res == predict_direction);
                 if let Some(altpred) = m.altpred {
-                    let altpred_entry = &self.tables[altpred.table].entries[altpred.entry_index];
-                    let altpred_res = altpred_entry
-                        .get_prediction(self.config.tables[altpred.table].counter_width);
+                    let altpred_res = match altpred {
+                        TageMatchInner::Base(altpred) => {
+                            let altpred_entry = &self.base_table.entries[altpred.entry_index];
+                            altpred_entry.get_prediction(self.config.base_table.counter_width)
+                        }
+                        TageMatchInner::NonBase(altpred) => {
+                            let altpred_entry =
+                                &self.tables[altpred.table].entries[altpred.entry_index];
+                            altpred_entry
+                                .get_prediction(self.config.tables[altpred.table].counter_width)
+                        }
+                    };
 
                     if pred_res != altpred_res {
                         // update useful counter
@@ -402,6 +494,15 @@ impl ConditionalBranchPredictor for Tage {
                     }
                 }
             }
+
+            // update base table
+            let entry_index = self.base_table.get_index(pc, &self.history_registers);
+            if resolve_direction {
+                self.base_table.entries[entry_index]
+                    .increment_counter(self.config.base_table.counter_width);
+            } else {
+                self.base_table.entries[entry_index].decrement_counter();
+            }
         }
 
         // update history registers
@@ -431,8 +532,8 @@ impl ConditionalBranchPredictor for Tage {
 #[cfg(test)]
 mod tests {
     use crate::{
-        BranchType, ConditionalBranchPredictor, Tage, TageConfig, TageHistoryRegisterConfig,
-        TagePHRConfig, TagePHRXorConfig, TageTableConfig, TageXorConfig,
+        BranchType, ConditionalBranchPredictor, Tage, TageBaseTableConfig, TageConfig,
+        TageHistoryRegisterConfig, TagePHRConfig, TagePHRXorConfig, TageTableConfig, TageXorConfig,
     };
 
     #[test]
@@ -541,6 +642,10 @@ mod tests {
                         ]
                     })
                 ],
+                base_table: TageBaseTableConfig {
+                    index_bits: vec![vec![TageXorConfig::PC(0)]],
+                    counter_width: 2
+                },
                 tables: vec![
                     TageTableConfig {
                         index_bits: vec![vec![TageXorConfig::PC(0), TageXorConfig::HR(1, 2)]],
