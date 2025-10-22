@@ -22,35 +22,6 @@ pub fn get_tqdm_style() -> indicatif::ProgressStyle {
 }
 
 /// create a mapping from instruction address to instruction index for instruction counting
-pub fn create_inst_index_mapping<P: AsRef<std::path::Path>>(
-    elf: P,
-) -> anyhow::Result<HashMap<u64, u64>> {
-    let cs = Capstone::new()
-        .x86()
-        .mode(arch::x86::ArchMode::Mode64)
-        .syntax(arch::x86::ArchSyntax::Att)
-        .detail(true)
-        .build()?;
-
-    let mut mapping: HashMap<u64, u64> = HashMap::new();
-    let binary_data = std::fs::read(elf)?;
-    let file = object::File::parse(&*binary_data)?;
-
-    let mut i = 0;
-    for section in file.sections() {
-        if section.kind() == SectionKind::Text {
-            let content = section.data()?;
-            let insns = cs.disasm_all(content, section.address())?;
-            for insn in insns.as_ref() {
-                assert_eq!(mapping.insert(insn.address(), i), None);
-                i += 1;
-            }
-        }
-    }
-    Ok(mapping)
-}
-
-/// create a mapping from instruction address to instruction index for instruction counting
 pub fn create_inst_index_mapping_from_images(
     images: &[Image],
 ) -> anyhow::Result<HashMap<u64, u64>> {
@@ -60,7 +31,10 @@ pub fn create_inst_index_mapping_from_images(
         let file = object::File::parse(binary_data).with_context(|| {
             format!(
                 "{} loaded to 0x{:x} with len {} (file len {})",
-                image.filename, image.start, image.len, binary_data.len()
+                image.filename,
+                image.start,
+                image.len,
+                binary_data.len()
             )
         })?;
         let load_base = match file.kind() {
