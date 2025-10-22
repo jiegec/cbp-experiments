@@ -1,7 +1,7 @@
 //! Test branch prediction accuracy
 use cbp_experiments::{
-    Branch, BranchType, TraceFileDecoder, create_inst_index_mapping_from_images, get_inst_index,
-    get_tqdm_style, is_indirect, new_indirect_branch_predictor,
+    Branch, BranchType, ImageWithoutData, TraceFileDecoder, create_inst_index_mapping_from_images,
+    get_inst_index, get_tqdm_style, is_indirect, new_indirect_branch_predictor,
 };
 use cbp_experiments::{SimulateResult, SimulateResultBranchInfo, new_conditional_branch_predictor};
 use clap::Parser;
@@ -58,7 +58,7 @@ fn main() -> anyhow::Result<()> {
     let file = TraceFileDecoder::open(&content);
     println!(
         "Got {} branches and {} entries",
-        file.num_brs, file.num_entries
+        file.num_branches, file.num_entries
     );
     println!(
         "Skip {} instructions, warmup {} instructions and simulate {} instructions",
@@ -73,7 +73,8 @@ fn main() -> anyhow::Result<()> {
     let mut indirect_branch_predictor_mut = indirect_branch_predictor.as_mut().unwrap();
 
     // create a mapping from instruction address to instruction index for instruction counting
-    let mapping = create_inst_index_mapping_from_images(file.images)?;
+    let file_images = file.get_images()?;
+    let mapping = create_inst_index_mapping_from_images(&file_images)?;
 
     let mut branch_infos = vec![];
 
@@ -347,8 +348,12 @@ fn main() -> anyhow::Result<()> {
 
     if let Some(output_path) = &args.output_path {
         let mut images = vec![];
-        for image in file.images {
-            images.push(image.try_into()?);
+        for image in file_images {
+            images.push(ImageWithoutData {
+                start: image.start,
+                len: image.len,
+                filename: image.filename,
+            });
         }
 
         let mut result = SimulateResult {

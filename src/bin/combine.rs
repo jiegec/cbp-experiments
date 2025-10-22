@@ -1,6 +1,6 @@
 //! Combine simulation results of multiple SimPoint phases
 use cbp_experiments::{
-    Branch, BranchType, ParsedImage, SimPointResult, SimulateResult, SimulateResultBranchInfo,
+    Branch, BranchType, ImageWithoutData, SimPointResult, SimulateResult, SimulateResultBranchInfo,
     is_indirect,
 };
 use clap::{Parser, Subcommand};
@@ -46,7 +46,7 @@ fn main() -> anyhow::Result<()> {
     let mut branch_info: Vec<SimulateResultBranchInfo> = vec![];
     let mut conditional_branch_predictor = String::new();
     let mut indirect_branch_predictor = String::new();
-    let mut images: Vec<ParsedImage> = vec![];
+    let mut images: Vec<ImageWithoutData> = vec![];
     let trace_path: Option<PathBuf>;
 
     // tuple of (input file, weight)

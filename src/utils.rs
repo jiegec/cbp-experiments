@@ -1,3 +1,5 @@
+use crate::{BranchType, Image};
+use anyhow::Context;
 use capstone::{
     arch::{
         ArchOperand,
@@ -6,9 +8,7 @@ use capstone::{
     prelude::*,
 };
 use object::{Architecture, Object, ObjectKind, ObjectSection, SectionKind};
-use std::{collections::HashMap, path::Path};
-
-use crate::{BranchType, Image};
+use std::collections::HashMap;
 
 pub fn get_tqdm_style() -> indicatif::ProgressStyle {
     indicatif::ProgressStyle::with_template(
@@ -56,14 +56,13 @@ pub fn create_inst_index_mapping_from_images(
 ) -> anyhow::Result<HashMap<u64, u64>> {
     let mut addrs = vec![];
     for image in images {
-        let mut image_filename = image.get_filename()?;
-        // parse instructions in the image
-        if image_filename == "[vdso]" {
-            // use our dumped vdso
-            image_filename = "tracers/common/vdso".to_string();
-        }
-        let binary_data = std::fs::read(&image_filename)?;
-        let file = object::File::parse(&*binary_data)?;
+        let binary_data = image.data.as_slice();
+        let file = object::File::parse(binary_data).with_context(|| {
+            format!(
+                "{} loaded to 0x{:x} with len {} (file len {})",
+                image.filename, image.start, image.len, binary_data.len()
+            )
+        })?;
         let load_base = match file.kind() {
             ObjectKind::Executable => 0,
             ObjectKind::Dynamic => image.start,
@@ -137,7 +136,7 @@ pub struct StaticBranch {
 }
 
 /// Find all branches by parsing ELF
-pub fn find_branches<P: AsRef<Path>>(path: P, load_base: u64) -> anyhow::Result<Vec<StaticBranch>> {
+pub fn find_branches(binary_data: &[u8], load_base: u64) -> anyhow::Result<Vec<StaticBranch>> {
     let mut branches = vec![];
 
     let cs = Capstone::new()
@@ -147,8 +146,7 @@ pub fn find_branches<P: AsRef<Path>>(path: P, load_base: u64) -> anyhow::Result<
         .detail(true)
         .build()?;
 
-    let binary_data = std::fs::read(path)?;
-    let file = object::File::parse(&*binary_data)?;
+    let file = object::File::parse(binary_data)?;
     let jump = Some("jump".to_string());
     let branch_relative = Some("branch_relative".to_string());
     let call = Some("call".to_string());

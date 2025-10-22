@@ -38,7 +38,7 @@ fn main() -> anyhow::Result<()> {
     let file = TraceFileDecoder::open(&content);
     println!(
         "Got {} branches, {}({:.2e}, {:.2} bit/entry) entries and {} images from {} trace",
-        file.num_brs,
+        file.num_branches,
         file.num_entries,
         file.num_entries,
         content.len() as f64 * 8.0 / file.num_entries as f64,
@@ -49,9 +49,11 @@ fn main() -> anyhow::Result<()> {
     println!("Loaded images:");
     for image in file.images.iter() {
         println!(
-            "Image {} loaded to 0x{:x}",
+            "Image {} ({} bytes) loaded to 0x{:x}-0x{:x}",
             image.get_filename()?,
-            image.start
+            image.data_size,
+            image.start,
+            image.start + image.len
         );
     }
 
@@ -87,9 +89,10 @@ fn main() -> anyhow::Result<()> {
     );
 
     // create a mapping from instruction address to instruction index for instruction counting
-    let mapping: HashMap<u64, u64> = create_inst_index_mapping_from_images(file.images)?;
+    let file_images = file.get_images()?;
+    let mapping: HashMap<u64, u64> = create_inst_index_mapping_from_images(&file_images)?;
 
-    let mut branch_infos = vec![BranchInfo::default(); file.num_brs];
+    let mut branch_infos = vec![BranchInfo::default(); file.num_branches];
 
     // preprocess instruction indices for all branches
     for (i, branch) in file.branches.iter().enumerate() {

@@ -29,21 +29,42 @@ struct __attribute__((packed)) image {
   // memory [start, start+len) mapped to file [0, len)
   uint64_t start;
   uint64_t len;
+  uint64_t data_size;
+  uint64_t data_offset; // offset of image data from the beginning of file
 
   // path
   char filename[256];
 };
 
+#define MAGIC 0x2121505845504243ULL
+
+struct __attribute__((packed)) file_header {
+  // trace file format magic
+  uint64_t magic;
+  // trace file version
+  uint64_t version;
+  uint64_t num_entries;
+  // offset of entries array from the beginning of file
+  uint64_t entries_offset;
+  // size of compressed entries array
+  uint64_t entries_size;
+  uint64_t num_branches;
+  // offset of branches array from the beginning of file
+  uint64_t branches_offset;
+  uint64_t num_images;
+  // offset of images array from the beginning of file
+  uint64_t images_offset;
+};
+
 // trace file format:
 // struct __attribute__((packed)) file {
-//   struct entry entries[num_entries]; // this array is zstd-compressed
-//   struct branch branches[num_brs];
-//   struct image images[num_images];
+//   file_header header;
 //
-//   uint64_t num_entries;
-//   uint64_t num_brs;
-//   uint64_t num_images;
+//   // the following arrays can be placed in arbitrary location
+//   struct entry entries[header.num_entries]; // this array is zstd-compressed
+//   struct branch branches[header.num_branches];
+//   struct image images[header.num_images];
 // }
 
-#define MAX_BRS (1 << 20)
+#define MAX_BRS (1 << 25)
 #define MAX_IMAGES 128

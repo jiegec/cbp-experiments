@@ -218,6 +218,9 @@ static void event_thread_init(void *drcontext) {
       dr_open_file(log_file_name, DR_FILE_CLOSE_ON_FORK | DR_FILE_ALLOW_LARGE |
                                       DR_FILE_WRITE_OVERWRITE);
   DR_ASSERT(log != INVALID_FILE);
+  // leave space for file header, zstd compressed branches start at
+  // sizeof(struct file_header)
+  dr_file_seek(log, sizeof(struct file_header), DR_SEEK_SET);
   struct tls *t = (struct tls *)malloc(sizeof(struct tls));
   t->log = log;
   t->num_entries = 0;
@@ -261,15 +264,56 @@ static void event_thread_exit(void *drcontext) {
   } while (!finished);
   t->buffer_size = 0;
 
-  // write branches
+  struct file_header header;
+  header.magic = MAGIC;
+  header.version = 0;
+  header.num_entries = t->num_entries;
+  header.entries_offset = sizeof(struct file_header);
+  header.entries_size = dr_file_tell(t->log) - header.entries_offset;
+
+  // write branches array
+  header.num_branches = t->num_brs;
+  header.branches_offset = dr_file_tell(t->log);
   dr_write_file(t->log, t->brs, sizeof(struct branch) * t->num_brs);
-  // write images
+
+  // write image content
+  for (int i = 0; i < t->num_images; i++) {
+    t->images[i].data_offset = dr_file_tell(t->log);
+
+    // if the file exists in file system, use the full image instead;
+    // otherwise we may get partial file
+    file_t image = dr_open_file(t->images[i].filename, DR_FILE_CLOSE_ON_FORK |
+                                                           DR_FILE_ALLOW_LARGE |
+                                                           DR_FILE_READ);
+    if (image != INVALID_FILE) {
+      char buffer[1024];
+      t->images[i].data_size = 0;
+      while (true) {
+        ssize_t size = dr_read_file(image, buffer, sizeof(buffer));
+        if (size == 0) {
+          break;
+        } else if (size > 0) {
+          dr_write_file(t->log, buffer, size);
+          t->images[i].data_size += size;
+        }
+      }
+      dr_close_file(image);
+    } else {
+      // if it doesn't exist (e.g. vdso), use existing data in memory
+      dr_write_file(t->log, (void *)t->images[i].start, t->images[i].len);
+      t->images[i].data_size = t->images[i].len;
+    }
+  }
+
+  // write images array
+  header.num_images = t->num_images;
+  header.images_offset = dr_file_tell(t->log);
   dr_write_file(t->log, t->images, sizeof(struct image) * t->num_images);
 
-  // write number of entries/branches/images
-  dr_write_file(t->log, &t->num_entries, sizeof(t->num_entries));
-  dr_write_file(t->log, &t->num_brs, sizeof(t->num_brs));
-  dr_write_file(t->log, &t->num_images, sizeof(t->num_images));
+  // write header
+  dr_file_seek(t->log, 0, DR_SEEK_SET);
+  dr_write_file(t->log, &header, sizeof(struct file_header));
+
   dr_close_file(t->log);
   fprintf(stderr, "Finished writing log\n");
 }

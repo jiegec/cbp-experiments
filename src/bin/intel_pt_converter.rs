@@ -299,11 +299,22 @@ impl Iterator for PerfDataIterator {
                 // read 256 bytes from filename field @ 0x48
                 let mut filename = [0u8; 256];
                 filename.copy_from_slice(&self.content[self.offset + 72..self.offset + 328]);
+                let filename_len = filename
+                    .iter()
+                    .position(|ch| *ch == 0)
+                    .unwrap_or(filename.len());
+                let filename = String::from_utf8(Vec::from(&filename[0..filename_len])).unwrap();
+                let data = if filename == "[vdso]" {
+                    std::fs::read("tracers/common/vdso").unwrap()
+                } else {
+                    std::fs::read(&filename).unwrap()
+                };
 
                 self.offset += event_size as usize;
                 return Some(PerfDataEntry::Image(Box::new(Image {
                     start: start - offset,
                     len: len + offset,
+                    data,
                     filename,
                 })));
             } else {
@@ -433,20 +444,19 @@ fn main() -> anyhow::Result<()> {
             )
         };
 
-    let trace = |output_trace: &TraceFileEncoder<'_>,
-                 branches: &Vec<BranchInfo>,
-                 branch_index: usize| {
-        if log_enabled!(Level::Trace) {
-            let pc = branches[branch_index].inst_addr;
-            let mut addr = format!("unknown:0x{:x}", pc);
-            for image in &output_trace.images {
-                if pc >= image.start && pc < image.start + image.len {
-                    addr = format!("{}:0x{:x}", image.get_filename().unwrap(), pc - image.start);
+    let trace =
+        |output_trace: &TraceFileEncoder<'_>, branches: &Vec<BranchInfo>, branch_index: usize| {
+            if log_enabled!(Level::Trace) {
+                let pc = branches[branch_index].inst_addr;
+                let mut addr = format!("unknown:0x{:x}", pc);
+                for image in &output_trace.images {
+                    if pc >= image.start && pc < image.start + image.len {
+                        addr = format!("{}:0x{:x}", image.filename, pc - image.start);
+                    }
                 }
+                trace!("PC = 0x{:x} ({})", pc, addr);
             }
-            trace!("PC = 0x{:x} ({})", pc, addr);
-        }
-    };
+        };
 
     // interpreter for executable
     let mut interpreter = None;
@@ -461,23 +471,17 @@ fn main() -> anyhow::Result<()> {
                 assert_eq!(branch_index, usize::MAX);
 
                 // collect images
-                let mut image_filename = image.get_filename()?;
                 println!(
                     "Found image {} loaded from 0x{:x} to 0x{:x}",
-                    image_filename,
+                    image.filename,
                     image.start,
                     image.start + image.len
                 );
-                output_trace.images.push(*image);
+                output_trace.images.push(*image.clone());
 
                 // parse instructions in the image
-                if image_filename == "[vdso]" {
-                    // use our dumped vdso
-                    image_filename = "tracers/common/vdso".to_string();
-                }
-
-                let binary_data = std::fs::read(&image_filename)?;
-                let file = object::File::parse(&*binary_data)?;
+                let binary_data = image.data.as_slice();
+                let file = object::File::parse(binary_data)?;
 
                 let load_base = match file.kind() {
                     ObjectKind::Executable => 0,
@@ -485,7 +489,7 @@ fn main() -> anyhow::Result<()> {
                     _ => unimplemented!("Unsupported file kind"),
                 };
 
-                for branch in find_branches(&image_filename, load_base)? {
+                for branch in find_branches(&image.data, load_base)? {
                     // range validation
                     assert!(
                         image.start <= branch.inst_addr
@@ -552,7 +556,7 @@ fn main() -> anyhow::Result<()> {
                 }
 
                 if (file.kind() == ObjectKind::Executable && interpreter.is_none())
-                    || interpreter == Some(image_filename)
+                    || interpreter == Some(image.filename)
                 {
                     // case 1, statically linked executable: this executable provides the entrypoint
                     // case 2, interpreter found: this interpreter provides the entrypoint

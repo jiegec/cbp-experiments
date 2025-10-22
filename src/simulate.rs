@@ -1,4 +1,4 @@
-use crate::{Branch, ParsedImage};
+use crate::Branch;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -12,12 +12,19 @@ pub struct SimulateResultBranchInfo {
     pub mispred_count: u64,
 }
 
+#[derive(Serialize, Deserialize, PartialEq, PartialOrd)]
+pub struct ImageWithoutData {
+    pub start: u64,
+    pub len: u64,
+    pub filename: String,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct SimulateResult {
     /// configuration
     /// combined simulation result might not have corresponding trace
     pub trace_path: Option<PathBuf>,
-    pub images: Vec<ParsedImage>,
+    pub images: Vec<ImageWithoutData>,
     pub conditional_branch_predictor: String,
     pub indirect_branch_predictor: String,
 

@@ -97,13 +97,14 @@ fn main() -> anyhow::Result<()> {
     let file = TraceFileDecoder::open(&content);
     println!(
         "Got {} branches and {} entries",
-        file.num_brs, file.num_entries
+        file.num_branches, file.num_entries
     );
 
     // create a mapping from instruction address to instruction index for instruction counting
-    let mapping = create_inst_index_mapping_from_images(file.images)?;
+    let file_images = file.get_images()?;
+    let mapping = create_inst_index_mapping_from_images(&file_images)?;
 
-    let mut branch_infos = vec![BranchInfo::default(); file.num_brs];
+    let mut branch_infos = vec![BranchInfo::default(); file.num_branches];
 
     // preprocess instruction indices for all branches
     for (i, branch) in file.branches.iter().enumerate() {
@@ -115,13 +116,13 @@ fn main() -> anyhow::Result<()> {
     pbar.set_style(get_tqdm_style());
 
     println!("Each SimPoint slice contains {} instructions", args.size);
-    println!("Basic block vector is of dimension {}", file.num_brs);
+    println!("Basic block vector is of dimension {}", file.num_branches);
 
     let mut last_targ_addr_index = None;
     let mut instructions = 0;
     let mut slices: Vec<SimPointSlice> = vec![];
     let mut current_simpoint_start_instruction = 0;
-    let mut current_simpoint_basic_block_vector = vec![0u64; file.num_brs];
+    let mut current_simpoint_basic_block_vector = vec![0u64; file.num_branches];
     for entries in file.entries()? {
         for entry in entries {
             let br_index = entry.get_br_index();
@@ -183,7 +184,7 @@ fn main() -> anyhow::Result<()> {
     );
 
     // kmeans
-    let mut vectors = Array2::<f64>::zeros((slices.len(), file.num_brs));
+    let mut vectors = Array2::<f64>::zeros((slices.len(), file.num_branches));
     for (i, simpoint) in slices.iter().enumerate() {
         for (j, val) in simpoint.basic_block_vector.iter().enumerate() {
             vectors[[i, j]] = *val;
@@ -207,7 +208,7 @@ fn main() -> anyhow::Result<()> {
             // sigma^2: the average variance from each point to its cluster center of the i-th cluster
             // BIC = sum(-Ri*log(2*pi)/2-Ri*d*log(sigma^2)/2-(Ri-1)/2+Ri*log(Ri/R))-(k+d*k)*log(R)/2
             let r = slices.len();
-            let d = file.num_brs;
+            let d = file.num_branches;
             let k = num_clusters;
             let mut ri = vec![0; num_clusters];
             let mut sigma = vec![0f64; num_clusters];
@@ -217,7 +218,7 @@ fn main() -> anyhow::Result<()> {
                 let cluster = prediction[i];
                 ri[cluster] += 1;
                 let closest_centroid = &model.centroids().index_axis(Axis(0), cluster);
-                for j in 0..file.num_brs {
+                for j in 0..file.num_branches {
                     let diff = vectors[[i, j]] - closest_centroid[j];
                     sigma[cluster] += diff * diff;
                 }
@@ -268,7 +269,7 @@ fn main() -> anyhow::Result<()> {
         phase_weights[cluster] += 1;
         // compute distance
         let mut dist = 0.0;
-        for j in 0..file.num_brs {
+        for j in 0..file.num_branches {
             let diff = vectors[[i, j]] - best_model.centroids()[[cluster, j]];
             dist += diff * diff;
         }
@@ -314,7 +315,7 @@ fn main() -> anyhow::Result<()> {
         // for simplicity, copy all branches instead of re-creating one on the fly
         encoder.branches = file.branches.to_vec();
         // clone images
-        encoder.images = file.images.to_vec();
+        encoder.images = file_images.clone();
         encoders.push(encoder);
     }
 
