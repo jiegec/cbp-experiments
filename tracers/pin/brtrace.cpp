@@ -2,6 +2,7 @@
 #include "pin.H"
 #include <cmath>
 #include <map>
+#include <stdint.h>
 #include <stdio.h>
 #include <zstd.h>
 
@@ -126,15 +127,56 @@ VOID Fini(INT32 code, VOID *v) {
   } while (!finished);
   buffer_size = 0;
 
+  struct file_header header;
+  header.magic = MAGIC;
+  header.version = 0;
+  header.num_entries = num_entries;
+  header.entries_offset = sizeof(struct file_header);
+  header.entries_size = ftell(trace) - header.entries_offset;
+
   // write branches
+  header.num_branches = num_brs;
+  header.branches_offset = ftell(trace);
   assert(fwrite(brs, sizeof(struct branch), num_brs, trace) == num_brs);
-  // write images
+
+  // write image content
+  for (uint64_t i = 0; i < num_images; i++) {
+    images[i].data_offset = ftell(trace);
+
+    // if the file exists in file system, use the full image instead;
+    // otherwise we may get partial file
+    FILE *image = fopen(images[i].filename, "rb");
+    if (image != NULL) {
+      char buffer[1024];
+      images[i].data_size = 0;
+      while (true) {
+        ssize_t size = fread(buffer, 1, sizeof(buffer), image);
+        if (size == 0) {
+          break;
+        } else if (size > 0) {
+          assert(fwrite(buffer, 1, size, trace) == (size_t)size);
+          images[i].data_size += size;
+        } else if (size < 0) {
+          assert(false);
+        }
+      }
+      fclose(image);
+    } else {
+      // if it doesn't exist (e.g. vdso), use existing data in memory
+      assert(fwrite((void *)images[i].start, 1, images[i].len, trace) == images[i].len);
+      images[i].data_size = images[i].len;
+    }
+  }
+
+  // write images array
+  header.num_images = num_images;
+  header.images_offset = ftell(trace);
   assert(fwrite(images, sizeof(struct image), num_images, trace) == num_images);
 
-  // write number of entries/branches/images
-  assert(fwrite(&num_entries, sizeof(num_entries), 1, trace) == 1);
-  assert(fwrite(&num_brs, sizeof(num_brs), 1, trace) == 1);
-  assert(fwrite(&num_images, sizeof(num_images), 1, trace) == 1);
+  // write header
+  fseek(trace, 0, SEEK_SET);
+  assert(fwrite(&header, sizeof(struct file_header), 1, trace) == 1);
+
   fclose(trace);
   fprintf(stderr, "Finished writing log\n");
 }
@@ -165,6 +207,9 @@ int main(int argc, char *argv[]) {
 
   // Prepare output file
   trace = fopen(KnobOutputFile.Value().c_str(), "w");
+  // leave space for file header, zstd compressed branches start at
+  // sizeof(struct file_header)
+  fseek(trace, sizeof(struct file_header), SEEK_SET);
 
   zstd_cctx = ZSTD_createCCtx();
   assert(zstd_cctx);

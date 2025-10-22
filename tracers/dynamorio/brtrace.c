@@ -295,6 +295,8 @@ static void event_thread_exit(void *drcontext) {
         } else if (size > 0) {
           dr_write_file(t->log, buffer, size);
           t->images[i].data_size += size;
+        } else if (size < 0) {
+          assert(false);
         }
       }
       dr_close_file(image);
