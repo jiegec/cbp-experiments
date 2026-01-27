@@ -80,7 +80,7 @@ fn get_selection(selections: Vec<String>, prompt: &str) -> anyhow::Result<String
     let item_reader = SkimItemReader::default();
     let items = item_reader.of_bufread(Cursor::new(input));
 
-    let output = Skim::run_with(&options, Some(items)).unwrap();
+    let output = Skim::run_with(options, Some(items)).unwrap();
     if output.is_abort {
         bail!("User cancelled the selection")
     }
